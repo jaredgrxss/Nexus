@@ -21,8 +21,12 @@ func ReversionService() {
 		}
 		// loop and extract data
 		for _, message := range messages {
-			log.Printf("Received message: ID=%s, Body=%s\n", *message.MessageId, *message.Body)
-			helpers.DeleteSQSMessage(os.Getenv("REVERION_SQS_URL"), message)
+			log.Printf("Received SNS message: ID=%s, Body=%s\n", *message.MessageId, *message.Body)
+			err := helpers.DeleteSQSMessage(os.Getenv("REVERSION_SQS_URL"), message)
+			if err != nil {
+				log.Println("Error in deleting SQS message", err)
+			}
+			log.Printf("Message successfully deleted!")
 		}
 	}
 }
