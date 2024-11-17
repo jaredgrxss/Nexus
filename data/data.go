@@ -3,24 +3,15 @@ package data
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"log"
 	"os"
 	"os/signal"
 	"time"
+	"Nexus/helpers"
 	// "github.com/alpacahq/alpaca-trade-api-go/v3/alpaca"
 	"github.com/alpacahq/alpaca-trade-api-go/v3/marketdata"
 	"github.com/alpacahq/alpaca-trade-api-go/v3/marketdata/stream"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/sns"
 )
-
-// session variables for SNS, cannot write to a single session concurrently
-// so multiple must be used
-var snsTopicConnectionTrades *sns.SNS
-var snsTopicConnectionQuotes *sns.SNS 
-var snsTopicConnectionBars *sns.SNS
 
 // struct to hold live trade information
 type TradeData struct {
@@ -75,31 +66,26 @@ func DataService() {
 		cancel()
 	}()
 	
-	// connnect to client and add listeners for universe
-	client := stream.NewStocksClient(
+	// set up client and add listeners for universe
+	streamClient := stream.NewStocksClient(
 		marketdata.IEX,
 		stream.WithTrades(tradeHandler, "SPY"),
 		stream.WithQuotes(quoteHandler, "SPY"),
 		stream.WithBars(barHandler, "APPL", "SPY"),
 		stream.WithCredentials(os.Getenv("BROKER_PAPER_API_KEY"), os.Getenv("BROKER_PAPER_SECRET_KEY")),
 	)
-
-	// // periodically display number of trades received so far 
-	// go func() {
-	// 	for {
-	// 		log.Println("")
-	// 	}
-	// }()
-
-	if err := client.Connect(ctx); err != nil {
+	
+	// connect to brokerage
+	if err := streamClient.Connect(ctx); err != nil {
 		log.Fatal("Could not establish connection with error: ", err)
 	}
-	log.Println("Established connection to broker!")
+	log.Println("Established brokerage connection")
 
+	// check to see if brokerage terminated our connection
 	go func() {
-		err := <-client.Terminated()
+		err := <-streamClient.Terminated()
 		if err != nil {
-			log.Fatal("Connection to broker terminated with error:", err)
+			log.Println("Connection to broker terminated with error:", err)
 		}
 		log.Println("Stopping service...")
 		os.Exit(0)
@@ -109,11 +95,6 @@ func DataService() {
 
 // handler for real time trades
 func tradeHandler(t stream.Trade) {
-	// establish sns connection
-	snsTopic, err := createOrReturnSNSConnection("TRADES") 
-	if err != nil {
-		log.Println("Error establishing connection to aws", err)
-	}
 
 	// construct message via struct
 	tradeData := TradeData{
@@ -135,7 +116,7 @@ func tradeHandler(t stream.Trade) {
 	}
 
 	// publish message to the SNS topic
-	messageID, err := publishSNSMessage(string(jsonData), snsTopic, os.Getenv("DATA_SNS"))
+	messageID, err := helpers.PublishSNSMessage(string(jsonData), os.Getenv("DATA_SNS"))
 
 	if err != nil {
 		log.Println("Error in publishing live trade data:", err)
@@ -147,12 +128,6 @@ func tradeHandler(t stream.Trade) {
 
 // handler for real time quotes
 func quoteHandler(q stream.Quote) {
-	// establish sns connection
-	snsTopic, err := createOrReturnSNSConnection("QUOTES") 
-	if err != nil {
-		log.Println("Error establishing connection to aws", err)
-	}
-
 	// construct message via struct
 	quoteData := QuoteData{
 		AskExchange: q.AskExchange,
@@ -175,7 +150,7 @@ func quoteHandler(q stream.Quote) {
 	}
 
 	// publish message
-	messageID, err := publishSNSMessage(string(jsonData), snsTopic, os.Getenv("DATA_SNS"))
+	messageID, err := helpers.PublishSNSMessage(string(jsonData), os.Getenv("DATA_SNS"))
 	if err != nil {
 		log.Println("Error in publishing live quote data:", err)
 		return
@@ -186,11 +161,6 @@ func quoteHandler(q stream.Quote) {
 
 // handler for real time bars
 func barHandler(b stream.Bar) {
-	// establish sns connection
-	snsTopic, err := createOrReturnSNSConnection("BARS") 
-	if err != nil {
-		log.Println("Error establishing connection to aws", err)
-	}
 
 	// construct message via struct
 	barData := BarData{
@@ -213,7 +183,7 @@ func barHandler(b stream.Bar) {
 	}
 
 	// publish message
-	messageID, err := publishSNSMessage(string(jsonData), snsTopic, os.Getenv("DATA_SNS"))
+	messageID, err := helpers.PublishSNSMessage(string(jsonData), os.Getenv("DATA_SNS"))
 
 	if err != nil {
 		log.Println("Error in publishing live bar data:", err)
@@ -221,60 +191,6 @@ func barHandler(b stream.Bar) {
 	}
 	log.Println("Successfully posted live bar data. MessageID:", messageID)
 	
-}
-
-// create a new sns connection or reuse exisitng connection
-func createOrReturnSNSConnection(connectionType string) (*sns.SNS, error) {
-	switch connectionType {
-	case "QUOTES":
-		if snsTopicConnectionQuotes == nil {
-			sess, err := session.NewSession(&aws.Config{
-				Region: aws.String(os.Getenv("REGION")),
-			})
-			if err != nil {
-				return nil, err
-			}
-			snsTopicConnectionQuotes := sns.New(sess)
-			return snsTopicConnectionQuotes, nil
-		} 
-		return snsTopicConnectionQuotes, nil
-	case "BARS":
-		if snsTopicConnectionBars == nil {
-			sess, err := session.NewSession(&aws.Config{
-				Region: aws.String(os.Getenv("REGION")),
-			})
-			if err != nil {
-				return nil, err
-			}
-			snsTopicConnectionBars := sns.New(sess)
-			return snsTopicConnectionBars, nil
-		} 
-		return snsTopicConnectionBars, nil
-	case "TRADES":
-		if snsTopicConnectionTrades == nil {
-			sess, err := session.NewSession(&aws.Config{
-				Region: aws.String(os.Getenv("REGION")),
-			})
-			if err != nil {
-				return nil, err
-			}
-			snsTopicConnectionTrades := sns.New(sess)
-			return snsTopicConnectionTrades, nil
-		} 
-		return snsTopicConnectionTrades, nil
-	}
-	return nil, errors.New("SNS Topic not found")
-}	
-
-func publishSNSMessage(data string, topic *sns.SNS, arn string) (string, error) {
-	result, err := topic.Publish(&sns.PublishInput{
-		Message: aws.String(data),
-		TopicArn: aws.String(arn),
-	})
-	if err != nil {
-		return "", err 
-	}
-	return *result.MessageId, nil
 }
 
 // // get non real-time stock bar data
