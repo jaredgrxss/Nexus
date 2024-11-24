@@ -8,7 +8,6 @@ import (
 	"os/signal"
 	"time"
 	"Nexus/helpers"
-	// "github.com/alpacahq/alpaca-trade-api-go/v3/alpaca"
 	"github.com/alpacahq/alpaca-trade-api-go/v3/marketdata"
 	"github.com/alpacahq/alpaca-trade-api-go/v3/marketdata/stream"
 )
@@ -62,6 +61,7 @@ func DataService() {
 	s := make(chan os.Signal, 1)
 	signal.Notify(s, os.Interrupt)
 	go func() {
+		log.Println("Keyboard interupt... canceling connection")
 		<-s
 		cancel()
 	}()
@@ -192,18 +192,3 @@ func barHandler(b stream.Bar) {
 	log.Println("Successfully posted live bar data. MessageID:", messageID)
 	
 }
-
-// // get non real-time stock bar data
-// func getStockBarData() {
-
-// }
-
-// // get non real-time quote data
-// func getStockQuoteData() {
-
-// }
-
-// // get non real-time trade data
-// func getStockTradeData() {
-
-// }
