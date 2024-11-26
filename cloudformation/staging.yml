@@ -34,30 +34,33 @@ Resources:
     Properties:
       ClusterName: Nexus-Cluster
   
-  # Define ecs tasks for Nexus
-  TaskDefinition:
+  # Define ecs tasks for reversion
+  TaskDefinitionReversion:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: NexusTaskDefinition
+      Family: ReversionTaskDefinition
       RequiresCompatibilities:
         - FARGATE
       Cpu: 256
       Memory: 512
       NetworkMode: awsvpc
       ContainerDefinition:
-        - Name: NexusContainer
+        - Name: ReversionContainer
           Image: amazon/nexus-image
           PortMappings:
             - ContainerPort: 80
+          Environment:
+            - Name: Service
+              Value: Reversion
           Essential: true
 
-  # Spin up the ecs service using FARGATE
-  ECSService:
+  # Spin up the reversion service using FARGATE
+  ReversionService:
     Type: AWS::ECS:Service
     Properties:
       Cluster: !Ref ECSCluster
-      ServiceName: Nexus
-      TaskDefinition: !Ref TaskDefinition 
+      ServiceName: ReversionService
+      TaskDefinition: !Ref TaskDefinitionReversion 
       DesiredCount: 1
       LaunchType: FARGATE
       NetworkConfiguration:
@@ -67,13 +70,60 @@ Resources:
             - !Ref SubnetB
           AssignPublicIp: ENABLED
 
-  # Need autoscaling for service
-  ECSAutoScalingTarget:
+  # Define ecs tasks for Data
+  TaskDefinitionData:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: DataTaskDefinition
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: 256
+      Memory: 512
+      NetworkMode: awsvpc
+      ContainerDefinition:
+        - Name: DataContainer
+          Image: amazon/nexus-image
+          PortMappings:
+            - ContainerPort: 80
+          Environment:
+            - Name: Service
+              Value: Data
+          Essential: true
+
+  # Spin up the Data service using FARGATE
+  DataService:
+    Type: AWS::ECS:Service
+    Properties:
+      Cluster: !Ref ECSCluster
+      ServiceName: DataService
+      TaskDefinition: !Ref TaskDefinitionData
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !Ref SubnetA
+            - !Ref SubnetB
+          AssignPublicIp: ENABLED
+
+  # Need autoscaling target for reversion service
+  ECSAutoScalingTargetReversion:
     Type: AWS::ApplicationAutoScaling::ScalableTarget
     Properties:
-      MaxCapacity: 5
+      MaxCapacity: 2
       MinCapacity: 1
-      ResourceId: !Sub service/${ECSCluster}/${ECSService}
+      ResourceId: !Sub service/${ECSCluster}/${ReversionService}
+      RoleARN: !GetAtt ECSAutoScalingRole.Arn
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+
+  # Need autoscaling target for Data service
+  ECSAutoScalingTargetData:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MaxCapacity: 2
+      MinCapacity: 1
+      ResourceId: !Sub service/${ECSCluster}/${DataService}
       RoleARN: !GetAtt ECSAutoScalingRole.Arn
       ScalableDimension: ecs:service:DesiredCount
       ServiceNamespace: ecs
@@ -118,6 +168,8 @@ Outputs:
     Value: !Ref ECSCluster
     Description: Name of the ECS Cluster
   
-  ServiceName:
-    Value: !Ref ECSService
-    Description: Name of the ECS service
+  ServiceNames:
+    Value: 
+      - !Ref ReversionService
+      - !Ref DataService
+    Description: Name of the ECS services

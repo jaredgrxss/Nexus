@@ -1,0 +1,74 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Deploying nexus common networking resources.
+
+Resources:
+  # Set up a VPC for networking
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties: 
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: Nexus-VPC
+  
+  SubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAzs ""]
+  
+  SubnetB:
+    Type: AWS::EC2::Subnet 
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs ""]
+  
+  # Cluster information
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: Nexus-Cluster
+
+  # Set up auto scaling role for cluster
+  ECSAutoScalingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: application-autoscaling.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ECSAutoScalingPolicy
+          PolicyDocument: 
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - ecs:UpdateService
+                  - ecs:DescribeServices
+                Resource: '*'
+
+Outputs: 
+  SubnetAId:
+    Value: !RefSubnetA
+    Export:
+      Name: SubnetAId
+  SubnetBId:
+    Value: !RefSubnetB
+    Export:
+      Name: SubnetBId
+  Nexus-Cluster:
+    Value: !Ref ECSCluster
+    Export:
+      Name: NexusCluster
+  ECSAutoScalingRole:
+    Value: !Ref ECSAutoScalingRole
+    Export:
+      Name: ECSAutoScalingRole
