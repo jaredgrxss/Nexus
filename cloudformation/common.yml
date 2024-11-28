@@ -3,7 +3,7 @@ Description: Deploying nexus common networking resources.
 
 Resources:
   # Set up a VPC for networking
-  VPC:
+  NexusVPC:
     Type: AWS::EC2::VPC
     Properties: 
       CidrBlock: 10.0.0.0/16
@@ -12,29 +12,69 @@ Resources:
       Tags:
         - Key: Name
           Value: Nexus-VPC
-  
+  # First Subnet
   SubnetA:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId: !Ref VPC
+      VpcId: !Ref NexusVPC
       CidrBlock: 10.0.1.0/24
       AvailabilityZone: !Select [0, !GetAzs ""]
-  
+
+  # Second Subnet
   SubnetB:
     Type: AWS::EC2::Subnet 
     Properties:
-      VpcId: !Ref VPC
+      VpcId: !Ref NexusVPC
       CidrBlock: 10.0.2.0/24
       AvailabilityZone: !Select [1, !GetAZs ""]
   
+  # Internet Gateway
+  NexusInternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  # Gateway Attachment
+  NexusGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref NexusVPC
+      InternetGatewayId: !Ref NexusInternetGateway
+
+  # Route Table
+  NexusRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref NexusVPC
+
+  # Set up route for route table
+  NexusRoute:
+    Type: AWS::Ec2::Route
+    Properties:
+      RouteTableId: !Ref NexusRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref NexusInternetGateway
+  
+  # Set up route assocation
+  NexusRouteTableAssociationSubnetA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetA
+      RouteTableId: !Ref NexusRouteTable
+  
+  # Set up route assocation
+  NexusRouteTableAssociationSubnetB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetB
+      RouteTableId: !Ref NexusRouteTable
+
   # Cluster information
   ECSCluster:
     Type: AWS::ECS::Cluster
     Properties:
       ClusterName: Nexus-Cluster
 
-  # Set up auto scaling role for cluster
-  ECSAutoScalingRole:
+  # Set up auto scaling role
+  NexusAutoScalingRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -55,6 +95,14 @@ Resources:
                   - ecs:DescribeServices
                 Resource: '*'
 
+
+ # Create IAM Profile for ECS tasks
+  NexusInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref NexusAutoScalingRole
+
 Outputs: 
   SubnetAId:
     Value: !RefSubnetA
@@ -68,7 +116,11 @@ Outputs:
     Value: !Ref ECSCluster
     Export:
       Name: NexusCluster
-  ECSAutoScalingRole:
-    Value: !Ref ECSAutoScalingRole
+  NexusAutoScalingRole:
+    Value: !Ref NexusAutoScalingRole
     Export:
-      Name: ECSAutoScalingRole
+      Name: NexusAutoScalingRole
+  NexusInstanceProfile:
+    Value: !Ref NexusInstanceProfile
+    Export:
+      Name: NexusInstanceProfile

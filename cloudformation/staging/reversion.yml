@@ -7,8 +7,6 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: ReversionTaskDefinition
-      RequiresCompatibilities:
-        - FARGATE
       Cpu: 256
       Memory: 512
       NetworkMode: awsvpc
@@ -24,13 +22,13 @@ Resources:
 
   # Spin up the reversion service using FARGATE
   ReversionService:
-    Type: AWS::ECS:Service
+    Type: AWS::ECS::Service
     Properties:
       Cluster: !ImportValue Nexus-Cluster
       ServiceName: ReversionService
       TaskDefinition: !Ref TaskDefinitionReversion 
       DesiredCount: 1
-      LaunchType: FARGATE
+      LaunchType: EC2
       NetworkConfiguration:
         AwsvpcConfiguration:
           Subnets:
