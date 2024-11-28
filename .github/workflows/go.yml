@@ -61,6 +61,11 @@ jobs:
       # Checkout code from repo
     - name: Checkout repository code
       uses: actions/checkout@v4
+
+    # debugging purposes
+    - name: List files
+      run: ls -R
+
       # Login to AWS ECR
     - name: Login to AWS ECR
       id: login-ecr
