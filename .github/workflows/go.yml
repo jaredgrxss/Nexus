@@ -69,7 +69,7 @@ jobs:
     - name : Build, Tag, and Push Docker Image
       env: 
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        ECR_REPOSITORY: Nexus
+        ECR_REPOSITORY: nexus
         IMAGE_TAG: ${{ github.sha }}
       run: |
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
@@ -201,7 +201,7 @@ jobs:
         SERVICE_NAME: DataService
         TASK_FAMILY: DataTaskDefinition
         CONTAINER_NAME: DataContainer
-        ECR_IMAGE: ${{ steps.login-ecr.outputs.registry }}/Nexus:${{ github.sha }}
+        ECR_IMAGE: ${{ steps.login-ecr.outputs.registry }}/nexus:${{ github.sha }}
       run: |
           # Get the current task definition 
           CURRENT_TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition $TASK_FAMILY)
@@ -235,7 +235,7 @@ jobs:
         SERVICE_NAME: ReversionService
         TASK_FAMILY: ReversionTaskDefinition
         CONTAINER_NAME: ReversionContainer
-        ECR_IMAGE: ${{ steps.login-ecr.outputs.registry }}/NexusReversion:${{ github.sha }}
+        ECR_IMAGE: ${{ steps.login-ecr.outputs.registry }}/nexus:${{ github.sha }}
       run: |
           # Get the current task definition 
           CURRENT_TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition $TASK_FAMILY)
