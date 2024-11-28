@@ -61,15 +61,6 @@ jobs:
       # Checkout code from repo
     - name: Checkout repository code
       uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    # debugging purposes
-    - name: List files
-      run: ls -R
-      
-    - name: Inspect Dockerfile
-      run: cat dockerFile
 
       # Login to AWS ECR
     - name: Login to AWS ECR
