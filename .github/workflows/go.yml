@@ -67,12 +67,9 @@ jobs:
     # debugging purposes
     - name: List files
       run: ls -R
-
-    - name: Fix Dockerfile permissions
-      run: chmod 644 Dockerfile
       
     - name: Inspect Dockerfile
-      run: cat Dockerfile
+      run: cat dockerFile
 
       # Login to AWS ECR
     - name: Login to AWS ECR
@@ -85,7 +82,7 @@ jobs:
         ECR_REPOSITORY: nexus
         IMAGE_TAG: ${{ github.sha }}
       run: |
-        docker build -f Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker build -f dockerFile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
   # deploying resources shared across all services
