@@ -1,4 +1,4 @@
-name: Nexus
+name: Nexus Build and Deployments
 
 on:
   workflow_dispatch:
