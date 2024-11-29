@@ -1,0 +1,24 @@
+name: Nexus Code Quality Analysis
+
+on:
+    push:
+        branches: [main]
+    pull_request:
+        branches: [main]
+    
+jobs:
+    analyze:
+        name: Analyze Nexus Code
+        runs-on: ubuntu-latest
+
+        steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+        
+        - name: Initialize CodeQL
+          uses: github/codeql-action/init@v2
+          with: 
+            languages: Go
+
+        - name: Run CodeQL Analysis 
+          uses: github/codeql-action/analyze@v2
