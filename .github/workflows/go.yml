@@ -196,6 +196,10 @@ jobs:
         aws-access-key-id: ${{ secrets.QA_AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.QA_AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-2
+      # Login to AWS ECR
+    - name: Login to AWS ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
       # Deploy to ECS with the latest ecr image
     - name: Deploy Data service to ECS
       env: 
@@ -230,6 +234,10 @@ jobs:
         aws-access-key-id: ${{ secrets.QA_AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.QA_AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-2
+      # Login to AWS ECR
+    - name: Login to AWS ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
       # Deploy to ECS with the latest ecr image
     - name: Deploy Data service to ECS
       env: 

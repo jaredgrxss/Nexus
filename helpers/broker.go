@@ -4,7 +4,6 @@ import (
 	"log"
 	"os"
 	"time"
-
 	"github.com/alpacahq/alpaca-trade-api-go/v3/alpaca"
 )
 
@@ -47,4 +46,44 @@ func MinutesTillMarketClose() (time.Duration, error) {
 		return -1, err
 	}
 	return clock.NextClose.Sub(clock.Timestamp), nil
+}
+
+/* 
+	will execute a market order to be filled 
+	at best possible price available immediately
+*/
+func ExecMarketOrder() {
+
+}
+
+/* 
+	will execute a market order to be filled 
+	if and only if price is <= specified price
+*/
+func ExecLimitOrder() {
+
+}
+
+/*
+	will gather historical bar data 
+	for a given inputed time frame
+*/
+func GetHistoricalBarData() {
+
+}
+
+/*
+	will gather historical quote data 
+	for a given inputed time frame
+*/
+func GetHistoricalQuoteData() {
+
+}
+
+/*
+	will gather historical trade data 
+	for a given inputed time frame
+*/
+func GetHistoricalTradeData() {
+
 }

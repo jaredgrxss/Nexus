@@ -1,1 +1,1 @@
-package strategies
+package strategies_test
