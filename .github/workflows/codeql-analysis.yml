@@ -11,6 +11,8 @@ permissions:
   pull-requests: write
   repository-projects: write
   security-events: write
+  issues: write
+  id-token: write
     
 jobs:
     analyze:
