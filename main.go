@@ -9,12 +9,13 @@ import (
 )
 
 func main() {
-	log.Println("**********************************")
-	log.Println("**********************************")
-	log.Println("********* STARTING NEXUS *********")
-	log.Println("**********************************")
-	log.Println("**********************************")
-	godotenv.Load(".env")
+	// load envs
+	err := godotenv.Load(".env")
+	if err != nil {
+		log.Println("Error loading envioronment variables:", err)
+		return
+	}
+	// spin up respective service
 	switch (os.Getenv("Service")) {
 	case "Data":
 		log.Println("--------------- STARTING UP DATA SERVICE ---------------")
