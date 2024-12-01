@@ -101,9 +101,9 @@ jobs:
     - name: Deploy Cloudformation Stack
       run: |
         aws cloudformation deploy \
-          --tempmlate-file cloudformation/common.yml
-          --stack-name NexusCommonDeployment
-          --capabilities CAPABILITY_IAM \ 
+         --tempmlate-file cloudformation/common.yml \
+         --stack-name NexusCommonDeployment \
+         --capabilities CAPABILITY_IAM \
       # Verify deployment was successful
     - name: Verify Cloudformation Deployment
       run: |
