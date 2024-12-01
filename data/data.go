@@ -54,48 +54,61 @@ type BarData struct {
 
 func DataService() {
 	log.Println("-------- Spinning up data service --------")	
-	// set up keyboard interrupt cancels
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	for {
 
-	s := make(chan os.Signal, 1)
-	signal.Notify(s, os.Interrupt)
-	go func() {
-		log.Println("Keyboard interupt... canceling connection")
-		<-s
-		cancel()
-	}()
-	
-	// set up client and add listeners for universe
-	streamClient := stream.NewStocksClient(
-		marketdata.IEX,
-		stream.WithTrades(tradeHandler, "SPY"),
-		stream.WithQuotes(quoteHandler, "SPY"),
-		stream.WithBars(barHandler, "APPL", "SPY"),
-		stream.WithCredentials(os.Getenv("BROKER_PAPER_API_KEY"), os.Getenv("BROKER_PAPER_SECRET_KEY")),
-	)
-	
-	// connect to brokerage
-	if err := streamClient.Connect(ctx); err != nil {
-		log.Fatal("Could not establish connection with error: ", err)
-	}
-	log.Println("Established brokerage connection")
-
-	// check to see if brokerage terminated our connection
-	go func() {
-		err := <-streamClient.Terminated()
+		// check to see if market is open
+		isMarketOpen, err := helpers.IsMarketOpen()
 		if err != nil {
-			log.Println("Connection to broker terminated with error:", err)
+			log.Printf("Failed to wait for market open: %v", err)
+			continue
 		}
-		log.Println("Stopping service...")
-		os.Exit(0)
-	}()
 
+		// market is not open, wait before trying to establish a connection
+		if !isMarketOpen {
+			log.Println("Market is not open yet...")
+			time.Sleep(1 * time.Minute)
+			continue
+		}
+
+		// set up keyboard interrupt cancels
+		ctx, cancel := context.WithCancel(context.Background())
+		s := make(chan os.Signal, 1)
+		signal.Notify(s, os.Interrupt)
+		go func() {
+			log.Println("Keyboard interupt... canceling connection")
+			<-s
+			cancel()
+		}()
+		
+		// set up client and add listeners for universe
+		streamClient := stream.NewStocksClient(
+			marketdata.IEX,
+			stream.WithTrades(tradeHandler, "SPY"),
+			stream.WithQuotes(quoteHandler, "SPY"),
+			stream.WithBars(barHandler, "APPL", "SPY"),
+			stream.WithCredentials(os.Getenv("BROKER_PAPER_API_KEY"), os.Getenv("BROKER_PAPER_SECRET_KEY")),
+		)
+		
+		// connect to brokerage
+		if err := streamClient.Connect(ctx); err != nil {
+			log.Fatal("Could not establish connection with error: ", err)
+		}
+		log.Println("Established brokerage connection")
+
+		// check to see if brokerage terminated our connection
+		go func() {
+			err := <-streamClient.Terminated()
+			if err != nil {
+				log.Println("Connection to broker terminated with error:", err)
+			}
+			log.Println("Stopping service...")
+			os.Exit(0)
+		}()
+	}
 }
 
 // handler for real time trades
 func tradeHandler(t stream.Trade) {
-
 	// construct message via struct
 	tradeData := TradeData{
 		Exchange: t.Exchange,
@@ -161,7 +174,6 @@ func quoteHandler(q stream.Quote) {
 
 // handler for real time bars
 func barHandler(b stream.Bar) {
-
 	// construct message via struct
 	barData := BarData{
 		Close: b.Close,

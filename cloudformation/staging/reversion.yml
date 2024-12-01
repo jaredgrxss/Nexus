@@ -1,0 +1,75 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Deploying reversion service with autoscaling policies and cost-effective Fargate setup.
+
+Resources:  
+  # Define ecs tasks for reversion
+  TaskDefinitionReversion:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: ReversionTaskDefinition
+      Cpu: 256
+      Memory: 512
+      NetworkMode: awsvpc
+      ContainerDefinition:
+        - Name: ReversionContainer
+          Image: amazon/amazon-ecs-sample
+          PortMappings:
+            - ContainerPort: 80
+          Environment:
+            - Name: Service
+              Value: Reversion
+          Essential: true
+
+  # Spin up the reversion service using FARGATE
+  ReversionService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !ImportValue Nexus-Cluster
+      ServiceName: ReversionService
+      TaskDefinition: !Ref TaskDefinitionReversion 
+      DesiredCount: 1
+      LaunchType: EC2
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue SubnetAId
+            - !ImportValue SubnetBId
+          AssignPublicIp: ENABLED
+
+
+  # Need autoscaling target for reversion service
+  ECSAutoScalingTargetReversion:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MaxCapacity: 2
+      MinCapacity: 1
+      NexusCluster: !ImportValue NexusCluster
+      ECSAutoScalingRole: !ImportValue ECSAutoScalingRole
+      ResourceId: !Sub service/${NexusCluster}/${ReversionService}
+      RoleARN: !GetAtt ECSAutoScalingRole.Arn
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+
+  # Set up auto scaling policy
+  ECSAutoScalingPolicyReversion:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: NexusAutoScalingPolicy
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref ECSAutoScalingTargetReversion
+      TargetTrackignScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        TargetValue: 50
+        ScaleInCooldown: 60
+        ScaleOutCooldown: 60
+
+Outputs:
+  ClusterName: 
+    Value: !ImportValue NexusCluster
+    Description: Name of the ECS Cluster
+  
+  ServiceNames:
+    Value: 
+      - !Ref ReversionService
+    Description: Name of the ECS services

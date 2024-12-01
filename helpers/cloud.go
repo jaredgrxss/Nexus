@@ -10,9 +10,8 @@ import (
 )
 
 /* 
-	global sessions to be reused for the application,
-	aws can manage and handle the sessions as Go can use 
-	these concurrently across multiple systems / packages
+	global sessions to be reused for a specific service,
+	so that we don't have to keep creating new sessions
 */
 var sess *session.Session
 var snsClient *sns.SNS
@@ -46,6 +45,7 @@ func createOrReturnSNSClient() (*sns.SNS, error) {
 
 // given a specific SNS topic, publish data 
 func PublishSNSMessage(data string, topicArn string) (string, error) {
+	// make sure client connections are active
 	_, err := createOrReturnSNSClient()
 	if err != nil {
 		return "", err
@@ -74,10 +74,12 @@ func createOrReturnSQSClient() (*sqs.SQS, error) {
 
 // used to poll a queue message for a given queue
 func PollSQSMessage(queueUrl string) ([]*sqs.Message, error) {
+	// make sure client connections are active
 	_, err := createOrReturnSQSClient()
 	if err != nil {
 		return nil, err
 	}
+	// poll the sqs for the latest data
 	output, err := sqsClient.ReceiveMessage(&sqs.ReceiveMessageInput{
 		QueueUrl: aws.String(queueUrl),
 		MaxNumberOfMessages: aws.Int64(1),
@@ -92,10 +94,12 @@ func PollSQSMessage(queueUrl string) ([]*sqs.Message, error) {
 
 // used to delete a specific SQS message 
 func DeleteSQSMessage(queueUrl string, message *sqs.Message) error {
+	// make sure client connections are active
 	_, err := createOrReturnSQSClient()
 	if err != nil {
 		return err
 	}
+	// delete an sqs message
 	_, err = sqsClient.DeleteMessage(&sqs.DeleteMessageInput{
 		QueueUrl: aws.String(queueUrl),
 		ReceiptHandle: message.ReceiptHandle,
@@ -106,8 +110,9 @@ func DeleteSQSMessage(queueUrl string, message *sqs.Message) error {
 	return nil
 }
 
+// used to subscribe a specific SQS arn to a specific SNS arm
 func SubscribeSQSToSNS(queueArn string, queueUrl string, snsArn string) error {
-	// make sure client connections are instantiated
+	// make sure client connections are active
 	_, err := createOrReturnSQSClient()
 	if err != nil {
 		return err
@@ -149,7 +154,7 @@ func SubscribeSQSToSNS(queueArn string, queueUrl string, snsArn string) error {
 		return err
 	}
 
-	// subscript SQS -> SNS 
+	// subscribe SQS -> SNS 
 	_, err = snsClient.Subscribe(&sns.SubscribeInput{
 		Protocol: aws.String("sqs"),
 		TopicArn: aws.String(snsArn),

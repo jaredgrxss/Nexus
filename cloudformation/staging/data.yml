@@ -1,0 +1,88 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Deploying data service with autoscaling policies and cost-effective Fargate setup.
+
+Resources:  
+  # Define ecs tasks for Data
+  TaskDefinitionData:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: DataTaskDefinition
+      Cpu: 256
+      Memory: 512
+      NetworkMode: awsvpc
+      ContainerDefinition:
+        - Name: DataContainer
+          Image: amazon/amazon-ecs-sample
+          PortMappings:
+            - ContainerPort: 80
+          Environment:
+            - Name: Service
+              Value: Data
+          Essential: true
+
+  # Spin up the Data service using EC2
+  DataService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !ImportValue NexusCluster
+      ServiceName: DataService
+      TaskDefinition: !Ref TaskDefinitionData
+      DesiredCount: 1
+      LaunchType: EC2
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue SubnetAId
+            - !ImportValue SubnetBId
+          AssignPublicIp: ENABLED
+
+  # Specify instance types for data service tasks
+  DataLaunchConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      InstanceType: t2.micro
+      ImageId: ami-0c02fb55956c7d316
+      SecurityGroups:
+        - !ImportValue DefaultSecurityGroup
+      IamInstanceProfile: !ImportValue NexusInstanceProfile
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          echo ECS_CLUSTER=${NexusCluster} >> /etc/ecs/ecs.config
+
+  # Need autoscaling target for Data service
+  ECSAutoScalingTargetData:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MaxCapacity: 2
+      MinCapacity: 1
+      NexusCluster: !ImportValue NexusCluster
+      ECSAutoScalingRole: !ImportValue ECSAutoScalingRole
+      ResourceId: !Sub service/${NexusCluster}/${DataService}
+      RoleARN: !GetAtt ECSAutoScalingRole.Arn
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+  
+  # Set up auto scaling policy
+  ECSAutoScalingPolicyData:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: DataAutoScalingPolicy
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref ECSAutoScalingTargetData
+      TargetTrackignScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        TargetValue: 50
+        ScaleInCooldown: 60
+        ScaleOutCooldown: 60
+  
+Outputs:
+  ClusterName: 
+    Value: !ImportValue NexusCluster
+    Description: Name of the ECS Cluster
+  
+  ServiceNames:
+    Value: 
+      - !Ref DataService
+    Description: Name of the ECS service

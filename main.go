@@ -15,13 +15,12 @@ func main() {
 	log.Println("**********************************")
 	log.Println("**********************************")
 	godotenv.Load(".env")
-	if os.Getenv("DATA") != "" {
+	switch (os.Getenv("Service")) {
+	case "Data":
 		log.Println("--------------- STARTING UP DATA SERVICE ---------------")
 		data.DataService()
-	} else if os.Getenv("REVERSION") != "" {
+	case "Reversion":
 		log.Println("--------------- STARTING UP REVERSION SERVICE ---------------")
 		strategies.ReversionService()
-	} else {
-		log.Println("No service specified... ending Nexus")
 	}
 }
