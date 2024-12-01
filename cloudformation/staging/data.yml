@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Deploying data service with autoscaling policies and cost-effective Fargate setup.
+Description: Deploying data service with autoscaling policies and cost-effective ec2 with asg setup.
 
 Resources:  
   # Define ecs tasks for Data
@@ -10,7 +10,7 @@ Resources:
       Cpu: 256
       Memory: 512
       NetworkMode: awsvpc
-      ContainerDefinition:
+      ContainerDefinitions:
         - Name: DataContainer
           Image: amazon/amazon-ecs-sample
           PortMappings:
@@ -20,7 +20,7 @@ Resources:
               Value: Data
           Essential: true
 
-  # Spin up the Data service using EC2
+  # Spin up the data service using EC2
   DataService:
     Type: AWS::ECS::Service
     Properties:
@@ -35,6 +35,35 @@ Resources:
             - !ImportValue SubnetAId
             - !ImportValue SubnetBId
           AssignPublicIp: ENABLED
+
+  # Launch configuration that will be associated with ASG 
+  DataLaunchConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      InstanceType: t2.micro
+      ImageId: ami-0c02fb55955c7d316
+      SecurityGroups:
+        - !ImportValue DefaultSecurityGroup
+      IamInstanceProfile: !ImportValue NexusInstanceProfile
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          echo ECS_CLUSTER=${NexusCluster} >> /etc/ecs/ecs.config
+  
+  DataAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+        - !ImportValue SubnetAId
+        - !ImportValue SubnetBId
+      LaunchConfigurationName: !Ref DataLaunchConfiguration
+      MinSize: 1
+      MaxSize: 2
+      DesiredCapacity: 1
+      Tags:
+        - Key: Name
+          Value: DataAutoScalingGroup
+          PropagateAtLaunch: true
 
   # Specify instance types for data service tasks
   DataLaunchConfiguration:
@@ -70,7 +99,7 @@ Resources:
       PolicyName: DataAutoScalingPolicy
       PolicyType: TargetTrackingScaling
       ScalingTargetId: !Ref ECSAutoScalingTargetData
-      TargetTrackignScalingPolicyConfiguration:
+      TargetTrackingScalingPolicyConfiguration:
         PredefinedMetricSpecification:
           PredefinedMetricType: ECSServiceAverageCPUUtilization
         TargetValue: 50
@@ -82,7 +111,7 @@ Outputs:
     Value: !ImportValue NexusCluster
     Description: Name of the ECS Cluster
   
-  ServiceNames:
+  ServiceName:
     Value: 
       - !Ref DataService
     Description: Name of the ECS service
