@@ -18,17 +18,22 @@ on:
   pull_request:
     branches: [ "main" ]
 
+permissions: write-all
+
 jobs:
   # build code and run all test
   build-and-test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix: 
+        go-version: [1.21, 1.22]
     steps:
     - uses: actions/checkout@v4
     # Setup Go 
     - name: Set up Go version
       uses: actions/setup-go@v4
       with:
-        go-version: '1.21.6'
+        go-version: ${{ matrix.go-version }}
     # Cache modules
     - name: Cache modules and dependencies
       uses: actions/cache@v4
@@ -39,12 +44,36 @@ jobs:
         key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum')}}
         restore-keys: |
           ${{ runner.os }}-go-
+    # Linting installation
+    - name: Install linter
+      run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+    # Run linter
+    - name: Run linter
+      run: golangci-lint run ./...
     # Build
     - name: Build application
       run: go build -v ./...
     # Test
     - name: Run test suite
-      run: go test -v ./...
+      run: |
+        go test -coverprofile=coverage.out -v ./...
+        go tool cover -func=coverage.out
+    # Upload code coverage
+    - name: Upload coverage 
+      uses: codecov/codecov-action@v5
+      with: 
+        files: coverage.out
+        flags: unittests
+        fail_ci_if_error: true
+    # Scan for hardcoded secrets in code
+    - name: Secret detection
+      uses: gitleaks/gitleaks-action@v1
+      env: 
+        path: .
+        exit-code: 1
+        verbose: true
+
+
 
   # build and push docker image to ecr
   build-and-push-image:
