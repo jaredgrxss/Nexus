@@ -123,7 +123,7 @@ func SimpleLinearRegression(x, y []float64) (float64, float64) {
 
 */
 func MultipleLinearRegression() (float64, float64) {
-	
+	return 0, 0
 }
 
 // helper function for finding range of a data set
