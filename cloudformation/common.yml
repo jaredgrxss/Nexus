@@ -18,8 +18,7 @@ Resources:
     Properties:
       VpcId: !Ref NexusVPC
       CidrBlock: 10.0.1.0/24
-      AvailabilityZone: !Select [0, !GetAzs ""]
-
+      AvailabilityZone: !Select [0, !GetAZs ""]
   # Second Subnet
   SubnetB:
     Type: AWS::EC2::Subnet 
@@ -27,52 +26,44 @@ Resources:
       VpcId: !Ref NexusVPC
       CidrBlock: 10.0.2.0/24
       AvailabilityZone: !Select [1, !GetAZs ""]
-  
   # Internet Gateway
   NexusInternetGateway:
     Type: AWS::EC2::InternetGateway
-
   # Gateway Attachment
   NexusGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
     Properties:
       VpcId: !Ref NexusVPC
       InternetGatewayId: !Ref NexusInternetGateway
-
   # Route Table
   NexusRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref NexusVPC
-
   # Set up route for route table
   NexusRoute:
-    Type: AWS::Ec2::Route
+    Type: AWS::EC2::Route
     Properties:
       RouteTableId: !Ref NexusRouteTable
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref NexusInternetGateway
-  
   # Set up route assocation
   NexusRouteTableAssociationSubnetA:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       SubnetId: !Ref SubnetA
       RouteTableId: !Ref NexusRouteTable
-  
   # Set up route assocation
   NexusRouteTableAssociationSubnetB:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       SubnetId: !Ref SubnetB
       RouteTableId: !Ref NexusRouteTable
-
   # Cluster information
   ECSCluster:
     Type: AWS::ECS::Cluster
     Properties:
-      ClusterName: Nexus-Cluster
-
+      ClusterName: NexusCluster
   # Set up auto scaling role
   NexusAutoScalingRole:
     Type: AWS::IAM::Role
@@ -94,7 +85,6 @@ Resources:
                   - ecs:UpdateService
                   - ecs:DescribeServices
                 Resource: '*'
-
  # Create IAM Profile for ECS tasks
   NexusInstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -104,14 +94,14 @@ Resources:
 
 Outputs: 
   SubnetAId:
-    Value: !RefSubnetA
+    Value: !Ref SubnetA
     Export:
       Name: SubnetAId
   SubnetBId:
-    Value: !RefSubnetB
+    Value: !Ref SubnetB
     Export:
       Name: SubnetBId
-  Nexus-Cluster:
+  NexusCluster:
     Value: !Ref ECSCluster
     Export:
       Name: NexusCluster
