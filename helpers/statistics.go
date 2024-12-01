@@ -27,7 +27,7 @@ func ExecADFTest(series []float64, lag int) (bool, float64) {
 */
 func CalcHurstExponent(series []float64) (float64, error) {
 	if len(series) < 2 {
-		return 0, errors.New("The length of the series must be at least 2")
+		return 0, errors.New("the length of the series must be at least 2")
 	}
 	var logRS, logN []float64
 	// loop through subset sizes
@@ -71,7 +71,7 @@ func CalcHurstExponent(series []float64) (float64, error) {
 */
 func CalcMeanReversionHalfLife(series []float64) (float64, error) {
 	if len(series) < 2 {
-		return 0, errors.New("The length of the series must be at least 2")
+		return 0, errors.New("the length of the series must be at least 2")
 	}
 	// prepare the lagged time series
 	x := series[:len(series)-1] // X(t - 1)
@@ -80,11 +80,41 @@ func CalcMeanReversionHalfLife(series []float64) (float64, error) {
 	beta, _ := stat.LinearRegression(x, y, nil, false)
 	// ensure beta is within a reasonable range
 	if beta <= 0 || beta >= 1 {
-		return 0, errors.New("Beta is not within 0 and 1")
+		return 0, errors.New("beta is not within 0 and 1")
 	}
 	// use the log of the linear regressed equation to find half life
 	halfLife := math.Log(2) / -math.Log(beta)
 	return halfLife, nil
+}
+
+/*
+	The cointegrated augmented dickey-fuller test
+	is used in statitistics to determine if a combination 
+	of two individual series is cointegrated, making them 
+	stationary when looked at together. This test is only 
+	suitable for 2 series, if you want to look to more, 
+	use the Johansen test.
+
+	Technical details:
+		The main idea is that we can run a linear regression on 
+		the two price series to find our hedging portfolio and 
+		then run an ADF test on this new portfolio to determine if
+		it will be stationary, ETF pairs are a good ground for
+		this type of trading 
+		
+*/
+func ExecCointegratedADFTest(seriesX, seriesY []float64, lag int) {
+
+}
+
+/*
+	The johansen test is used in statitistics to determine 
+	if a combination of two individual series is cointegrated, 
+	making them stationary when looked at together. This test 
+	is suitable for multiple series (n >= 2).
+*/
+func ExecJohansenTest() {
+
 }
 
 /*
