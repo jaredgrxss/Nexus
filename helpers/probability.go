@@ -1,6 +1,7 @@
 package helpers
 
 import (
+	"errors"
 	"math"
 	"github.com/berkmancenter/adf"
 	"gonum.org/v1/gonum/stat"
@@ -24,7 +25,10 @@ func ExecADFTest(series []float64, lag int) (bool, float64) {
 	will calculate the Hurst exponent on 
 	a given set of floating point data.
 */
-func CalcHurstExponent(series []float64) float64 {
+func CalcHurstExponent(series []float64) (float64, error) {
+	if len(series) < 2 {
+		return 0, errors.New("The length of the series must be at least 2")
+	}
 	var logRS, logN []float64
 	// loop through subset sizes
 	for n := 2; n <= len(series) / 2; n++ {
@@ -58,7 +62,7 @@ func CalcHurstExponent(series []float64) float64 {
 	}
 	// linear regress data and return the calculate slope
 	slope, _ := stat.LinearRegression(logN, logRS, nil, false)
-	return slope
+	return slope, nil
 }
 
 /*
@@ -66,7 +70,21 @@ func CalcHurstExponent(series []float64) float64 {
 	of a certian set of floating point data.
 */
 func CalcMeanReversionHalfLife(series []float64) (float64, error) {
-
+	if len(series) < 2 {
+		return 0, errors.New("The length of the series must be at least 2")
+	}
+	// prepare the lagged time series
+	x := series[:len(series)-1] // X(t - 1)
+	y := series[1:] // X(t)
+	// perform a linear regression y = alpha + beta * x
+	beta, _ := stat.LinearRegression(x, y, nil, false)
+	// ensure beta is within a reasonable range
+	if beta <= 0 || beta >= 1 {
+		return 0, errors.New("Beta is not within 0 and 1")
+	}
+	// use the log of the linear regressed equation to find half life
+	halfLife := math.Log(2) / -math.Log(beta)
+	return halfLife, nil
 }
 
 /*
@@ -91,6 +109,21 @@ func CalcVariance() {
 */
 func CalcStandardDeviation() {
 
+}
+
+/*
+	run a regression between one indepedent variable 
+	and one dependent variable
+*/
+func SimpleLinearRegression(x, y []float64) (float64, float64) {
+	return stat.LinearRegression(x, y, nil, false)
+}
+
+/*
+
+*/
+func MultipleLinearRegression() (float64, float64) {
+	
 }
 
 // helper function for finding range of a data set
