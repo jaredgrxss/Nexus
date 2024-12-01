@@ -95,7 +95,6 @@ Resources:
                   - ecs:DescribeServices
                 Resource: '*'
 
-
  # Create IAM Profile for ECS tasks
   NexusInstanceProfile:
     Type: AWS::IAM::InstanceProfile

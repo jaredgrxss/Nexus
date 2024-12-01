@@ -12,7 +12,7 @@ import (
 	In order for this to even be considered for MR, test statistic needs to be negative.
 */
 func ExecADFTest(series []float64, pvalue float64, lag int) (bool, float64) {
-	adfTest := adf.New(series, pvalue, lag) // generates a new test 
+	adfTest := adf.New(series, -pvalue, lag) // generates a new test, make this negative sense ADF test statistic is negative
 	adfTest.Run() // runs the ADF test on the set of data
 	return adfTest.IsStationary(), adfTest.Statistic // returns if the time series is stationary & the test statistic
 }
