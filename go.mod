@@ -1,6 +1,8 @@
 module Nexus
 
-go 1.21.6
+go 1.22
+
+toolchain go1.22.9
 
 require (
 	github.com/alpacahq/alpaca-trade-api-go/v3 v3.6.0
@@ -24,5 +26,6 @@ require (
 	github.com/shopspring/decimal v1.3.1 // indirect
 	github.com/vmihailenco/msgpack/v5 v5.3.0 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
+	gonum.org/v1/gonum v0.15.1 // indirect
 	nhooyr.io/websocket v1.8.10 // indirect
 )

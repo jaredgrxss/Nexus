@@ -7,14 +7,14 @@ import (
 )
 
 func ReversionService() {
+	// make sure reversion SQS is subscribed to the data SNS before entering into main service
+	err := helpers.SubscribeSQSToSNS(os.Getenv("REVERSION_SQS_ARN"), os.Getenv("REVERSION_SQS_URL"), os.Getenv("DATA_SNS"))
+	if err != nil {
+		log.Println("Error in subscribing to SNS data topic", err)
+		return
+	}
 	for {
-		// make sure reversion SQS is subscribed to the data SNS
-		err := helpers.SubscribeSQSToSNS(os.Getenv("REVERSION_SQS_ARN"), os.Getenv("REVERSION_SQS_URL"), os.Getenv("DATA_SNS"))
-		if err != nil {
-			log.Println("Error in subscribing to SNS data topic", err)
-			return
-		}
-		// get all messages from SQS
+		// get message from SQS
 		messages, err := helpers.PollSQSMessage(os.Getenv("REVERSION_SQS_URL"))
 		if err != nil {
 			log.Println("Error in receiving SQS message", err)
