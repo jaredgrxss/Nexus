@@ -1,6 +1,9 @@
 # Using Go image for 1.21.6
 FROM golang:1.22 as builder
 
+# Install helper for the enviornment variables
+RUN apt-get update && apt-get intstall -y gnupg && rm -rf /var/lib/apt/list/*
+
 # Set working directory
 WORKDIR /app 
 

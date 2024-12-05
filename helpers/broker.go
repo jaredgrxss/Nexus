@@ -5,6 +5,7 @@ import (
 	"os"
 	"time"
 	"github.com/alpacahq/alpaca-trade-api-go/v3/alpaca"
+	// "github.com/alpacahq/alpaca-trade-api-go/v3/marketdata"
 )
 
 // reusuable client to handle market operations
@@ -16,7 +17,7 @@ func createOrReturnTradeClient() {
 		tradeClient = alpaca.NewClient(alpaca.ClientOpts{
 			APIKey: os.Getenv("BROKER_PAPER_API_KEY"),
 			APISecret: os.Getenv("BROKER_PAPER_SECRET_KEY"),
-			BaseURL: os.Getenv("BROKER_BASE_URL"),
+			BaseURL: os.Getenv("PAPER_URL"),
 		})
 	}
 }
