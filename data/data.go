@@ -69,7 +69,6 @@ func DataService() {
 		}
 
 		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
 
 		// setting up cancelling upon keyboard interrupt
 		s := make(chan os.Signal, 1)
