@@ -1,21 +1,25 @@
 package helpers
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/sns"
 	"github.com/aws/aws-sdk-go/service/sqs"
 )
 
-/* 
+/*
 	global sessions to be reused for a specific service,
 	so that we don't have to keep creating new sessions
 */
 var sess *session.Session
 var snsClient *sns.SNS
 var sqsClient *sqs.SQS
+var secretsClient *secretsmanager.SecretsManager
 
 // use a shared session to avoid too many connections open across the system
 func createOrReturnAWSSession() (*session.Session, error) {
@@ -164,4 +168,57 @@ func SubscribeSQSToSNS(queueArn string, queueUrl string, snsArn string) error {
 		return err
 	}
 	return nil 
+}
+
+// helper to return a secrets session if one is not already created
+func createOrReturnSecretsClient() (*secretsmanager.SecretsManager, error) {
+	if secretsClient == nil {
+		_, err := createOrReturnAWSSession()
+		if err != nil {
+			return nil, err
+		}
+		secretsClient = secretsmanager.New(sess)
+	}
+	return secretsClient, nil
+}
+
+// used to help retreive passphase for decrypting our env file
+func RetrieveSecret(secretName string) (string, error) {
+	// make sure we have an active session
+	_, err := createOrReturnAWSSession()
+	if err != nil {
+		return "", err
+	}
+
+	// make sure we have an active secrets client session
+	_, err = createOrReturnSecretsClient()
+	if err != nil {
+		return "", err
+	}
+
+	// fetch from aws
+	input := &secretsmanager.GetSecretValueInput{
+		SecretId: aws.String(secretName),
+	}
+
+	result, err := secretsClient.GetSecretValue(input)
+	if err != nil {
+		return "", err 
+	}
+
+	// return our found secret
+	return *result.SecretString, nil
+}
+
+// helper to decrypt env file with a specific password
+func DecryptEnvFile(password string, envFileName string) error {
+	cmd := exec.Command("gpg", "--batch", "--yes", "--passphrase", password, "--output", ".env", "-decrypt", envFileName)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err != nil {
+		return err
+	}
+	return nil
 }

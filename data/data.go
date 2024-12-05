@@ -51,15 +51,13 @@ type BarData struct {
 	Volume uint64
 }
 
-
 func DataService() {
-	log.Println("-------- Spinning up data service --------")	
+	// check to see if market is open
 	for {
-
-		// check to see if market is open
 		isMarketOpen, err := helpers.IsMarketOpen()
 		if err != nil {
 			log.Printf("Failed to wait for market open: %v", err)
+			time.Sleep(10 * time.Second)
 			continue
 		}
 
@@ -70,30 +68,34 @@ func DataService() {
 			continue
 		}
 
-		// set up keyboard interrupt cancels
 		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		// setting up cancelling upon keyboard interrupt
 		s := make(chan os.Signal, 1)
 		signal.Notify(s, os.Interrupt)
 		go func() {
-			log.Println("Keyboard interupt... canceling connection")
 			<-s
 			cancel()
 		}()
 		
+		log.Println("Trying to connect to broker data stream")
 		// set up client and add listeners for universe
 		streamClient := stream.NewStocksClient(
 			marketdata.IEX,
-			stream.WithTrades(tradeHandler, "SPY"),
-			stream.WithQuotes(quoteHandler, "SPY"),
-			stream.WithBars(barHandler, "APPL", "SPY"),
+			stream.WithTrades(tradeHandler, "AAPL"),
+			stream.WithQuotes(quoteHandler, "AAPL"),
+			stream.WithBars(barHandler, "AAPL"),
 			stream.WithCredentials(os.Getenv("BROKER_PAPER_API_KEY"), os.Getenv("BROKER_PAPER_SECRET_KEY")),
 		)
+
+		// add logic to subscribe to trades, quotes, and bars for a list of stocks here
 		
 		// connect to brokerage
 		if err := streamClient.Connect(ctx); err != nil {
 			log.Fatal("Could not establish connection with error: ", err)
 		}
-		log.Println("Established brokerage connection")
+		log.Println("Established brokerage connection!")
 
 		// check to see if brokerage terminated our connection
 		go func() {
@@ -104,6 +106,13 @@ func DataService() {
 			log.Println("Stopping service...")
 			os.Exit(0)
 		}()
+
+		// block to keep the service alive
+		<-ctx.Done()
+		log.Println("Client terminated connection or keyboard interrupt, shutting down.")
+
+		// retry service again in case of any errors
+		time.Sleep(1 * time.Minute)
 	}
 }
 
@@ -124,7 +133,7 @@ func tradeHandler(t stream.Trade) {
 	// marshal struct into JSON
 	jsonData, err := json.Marshal(tradeData)
 	if err != nil {
-		log.Println("Error in marshallign trade data struct to JSON:", err)
+		log.Println("Error in marshalling trade data struct to JSON:", err)
 		return
 	}
 
@@ -158,7 +167,7 @@ func quoteHandler(q stream.Quote) {
 	// marshal struct into JSON
 	jsonData, err := json.Marshal(quoteData)
 	if err != nil {
-		log.Println("Error in marshallign trade data struct to JSON:", err)
+		log.Println("Error in marshalling trade data struct to JSON:", err)
 		return
 	}
 
@@ -190,7 +199,7 @@ func barHandler(b stream.Bar) {
 	// marshal struct into JSON
 	jsonData, err := json.Marshal(barData)
 	if err != nil {
-		log.Println("Error in marshallign trade data struct to JSON:", err)
+		log.Println("Error in marshalling trade data struct to JSON:", err)
 		return
 	}
 
@@ -201,6 +210,6 @@ func barHandler(b stream.Bar) {
 		log.Println("Error in publishing live bar data:", err)
 		return
 	}
-	log.Println("Successfully posted live bar data. MessageID:", messageID)
+	log.Println("Successfully posted live bar data for symbol", b.Symbol, " MessageID:", messageID)
 	
 }

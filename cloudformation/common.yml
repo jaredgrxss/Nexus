@@ -91,6 +91,26 @@ Resources:
     Properties:
       Roles:
         - !Ref NexusAutoScalingRole
+  # Create a shared role that will be used throughout Nexus deploys
+  NexusTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: 
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: SecretesManagerAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement: 
+              - Effect: Allow
+                Action: 
+                  - secretsmanager:GetSecretValue
+                Resource: '*'
 
 Outputs: 
   SubnetAId:
@@ -113,3 +133,7 @@ Outputs:
     Value: !Ref NexusInstanceProfile
     Export:
       Name: NexusInstanceProfile
+  NexusTaskExecutionRoleArn:
+    Value: !GetAtt NexusTaskExecutionRole.Arn
+    Export: 
+      Name: NexusTaskExecutionRoleArn
