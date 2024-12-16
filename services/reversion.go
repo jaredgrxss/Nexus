@@ -1,4 +1,4 @@
-package strategies
+package services
 
 import (
 	"Nexus/helpers"

@@ -101,10 +101,28 @@ func CalcMeanReversionHalfLife(series []float64) (float64, error) {
 		then run an ADF test on this new portfolio to determine if
 		it will be stationary, ETF pairs are a good ground for
 		this type of trading 
+	
+	Miscellaneous:
+		Order matters in this test, i.e if switch the independent and dependent 
+		variables, you have the possibility of getting (or not getting) a cointegrated 
+		series. This is due to the fact that your hedge ratio (beta) will differ. It is
+		best to try both of the pairs you are looking at as the independent and dependent
+		variables
 		
 */
-func ExecCointegratedADFTest(seriesX, seriesY []float64, lag int) {
+func ExecCointegratedADFTest(seriesX, seriesY []float64, lag int) (bool, float64) {
+	// first run, linear regression on the two data sets
+	_, beta := SimpleLinearRegression(seriesX, seriesY)
 
+	// calculate the residuals off of this regression
+	residuals := make([]float64, len(seriesX))
+	for i := 0; i < len(seriesX); i++ {
+		residuals[i] = seriesY[i] - beta*seriesX[i]
+	}
+
+	// run a ADF test on the residuals 
+	isCointegrated, testStatistic := ExecADFTest(residuals, lag)
+	return isCointegrated, testStatistic
 }
 
 /*
@@ -121,24 +139,24 @@ func ExecJohansenTest() {
 	given a certian set of time series data
 	calculate the mean of this data set.
 */
-func CalcMean() {
-
+func CalcMean(series []float64) float64 {
+	return stat.Mean(series, nil)
 }
 
 /*
 	given a certian set of time series data
 	calculate the variance of this data set.
 */
-func CalcVariance() {
-
+func CalcVariance(series []float64) float64 {
+	return stat.Variance(series, nil)
 }
 
 /*
 	given a certian set of time series data
 	calculate the standard deviation of this data set.
 */
-func CalcStandardDeviation() {
-
+func CalcStandardDeviation(series []float64) float64 {
+	return stat.StdDev(series, nil)
 }
 
 /*
@@ -150,10 +168,12 @@ func SimpleLinearRegression(x, y []float64) (float64, float64) {
 }
 
 /*
-
+	will run a multiple linear regression on multiple 
+	independent time series against a singular dependent time 
+	series, useful for various strategies, will return alpha and beta
 */
-func MultipleLinearRegression() (float64, float64) {
-	return 0, 0
+func MultipleLinearRegression(seriesY []float64, seriesX ...[]float64) (float64, float64) {
+	return 0.0, 0.0
 }
 
 // helper function for finding range of a data set

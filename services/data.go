@@ -1,4 +1,4 @@
-package data
+package services
 
 import (
 	"context"
@@ -106,7 +106,7 @@ func DataService() {
 			os.Exit(0)
 		}()
 
-		// block to keep the service alive
+		// block channel to keep the service alive
 		<-ctx.Done()
 		log.Println("Client terminated connection or keyboard interrupt, shutting down.")
 
