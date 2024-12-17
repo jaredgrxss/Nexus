@@ -83,7 +83,6 @@ func DataService() {
 		streamClient := stream.NewStocksClient(
 			marketdata.IEX,
 			stream.WithTrades(tradeHandler, "AAPL"),
-			stream.WithQuotes(quoteHandler, "AAPL"),
 			stream.WithBars(barHandler, "AAPL"),
 			stream.WithCredentials(os.Getenv("BROKER_PAPER_API_KEY"), os.Getenv("BROKER_PAPER_SECRET_KEY")),
 		)
