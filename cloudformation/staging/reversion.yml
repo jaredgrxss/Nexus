@@ -23,6 +23,8 @@ Resources:
               Value: staging
             - Name: passphrase
               Value: staging/Nexus/passphrase
+            - Name: REGION
+              Value: us-east-2
             - Name: env-file
               Value: .env-staging.gpg
 
