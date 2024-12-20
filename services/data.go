@@ -147,37 +147,36 @@ func tradeHandler(t stream.Trade) {
 }
 
 // handler for real time quotes
-func quoteHandler(q stream.Quote) {
-	// construct message via struct
-	quoteData := QuoteData{
-		AskExchange: q.AskExchange,
-		AskPrice: q.AskPrice,
-		AskSize: q.AskSize,
-		BidExchange: q.BidExchange,
-		BidPrice: q.BidPrice,
-		BidSize: q.BidSize,
-		Conditions: q.Conditions,
-		Symbol: q.Symbol,
-		Tape: q.Tape,
-		Timestamp: q.Timestamp,
-	}
+// func quoteHandler(q stream.Quote) {
+// 	// construct message via struct
+// 	quoteData := QuoteData{
+// 		AskExchange: q.AskExchange,
+// 		AskPrice: q.AskPrice,
+// 		AskSize: q.AskSize,
+// 		BidExchange: q.BidExchange,
+// 		BidPrice: q.BidPrice,
+// 		BidSize: q.BidSize,
+// 		Conditions: q.Conditions,
+// 		Symbol: q.Symbol,
+// 		Tape: q.Tape,
+// 		Timestamp: q.Timestamp,
+// 	}
 
-	// marshal struct into JSON
-	jsonData, err := json.Marshal(quoteData)
-	if err != nil {
-		log.Println("Error in marshalling trade data struct to JSON:", err)
-		return
-	}
+// 	// marshal struct into JSON
+// 	jsonData, err := json.Marshal(quoteData)
+// 	if err != nil {
+// 		log.Println("Error in marshalling trade data struct to JSON:", err)
+// 		return
+// 	}
 
-	// publish message
-	messageID, err := helpers.PublishSNSMessage(string(jsonData), os.Getenv("DATA_SNS"))
-	if err != nil {
-		log.Println("Error in publishing live quote data:", err)
-		return
-	}
-	log.Println("Successfully posted live quote data. MessageID:", messageID)
-
-}
+// 	// publish message
+// 	messageID, err := helpers.PublishSNSMessage(string(jsonData), os.Getenv("DATA_SNS"))
+// 	if err != nil {
+// 		log.Println("Error in publishing live quote data:", err)
+// 		return
+// 	}
+// 	log.Println("Successfully posted live quote data. MessageID:", messageID)
+// }
 
 // handler for real time bars
 func barHandler(b stream.Bar) {
