@@ -16,7 +16,7 @@ import (
 	In order for this to even be considered for MR, test statistic needs to be negative than the
 	pre-determined critical value at that particular p-value threshold
 */
-func ExecADFTest(series []float64, lag int) (bool, float64) {
+func ExecADFTest(series []float64, lag int) (IsStationary bool, testStatistic float64) {
 	adfTest := adf.New(series, 0, lag) // generates a new test, make this negative sense ADF test statistic is negative
 	adfTest.Run() // runs the ADF test on the set of data
 	return adfTest.IsStationary(), adfTest.Statistic // returns if the time series is stationary & the test statistic
@@ -26,7 +26,7 @@ func ExecADFTest(series []float64, lag int) (bool, float64) {
 	will calculate the Hurst exponent on 
 	a given set of floating point data.
 */
-func CalcHurstExponent(series []float64) (float64, error) {
+func CalcHurstExponent(series []float64) (HurstExponent float64, Error error) {
 	if len(series) < 2 {
 		return 0, errors.New("the length of the series must be at least 2")
 	}
@@ -70,7 +70,7 @@ func CalcHurstExponent(series []float64) (float64, error) {
 	will calculate the half life of mean reversion
 	of a certian set of floating point data.
 */
-func CalcMeanReversionHalfLife(series []float64) (float64, error) {
+func CalcMeanReversionHalfLife(series []float64) (halfLife float64, Error error) {
 	if len(series) < 2 {
 		return 0, errors.New("the length of the series must be at least 2")
 	}
@@ -84,7 +84,7 @@ func CalcMeanReversionHalfLife(series []float64) (float64, error) {
 		return 0, errors.New("beta is not within 0 and 1")
 	}
 	// use the log of the linear regressed equation to find half life
-	halfLife := math.Log(2) / -math.Log(beta)
+	halfLife = math.Log(2) / -math.Log(beta)
 	return halfLife, nil
 }
 
@@ -111,7 +111,7 @@ func CalcMeanReversionHalfLife(series []float64) (float64, error) {
 		variables
 		
 */
-func ExecCointegratedADFTest(seriesX, seriesY []float64, lag int) (bool, float64) {
+func ExecCointegratedADFTest(seriesX, seriesY []float64, lag int) (isCointegrated bool, testStatistic float64) {
 	// first run, linear regression on the two data sets
 	_, beta := SimpleLinearRegression(seriesX, seriesY)
 
@@ -122,7 +122,7 @@ func ExecCointegratedADFTest(seriesX, seriesY []float64, lag int) (bool, float64
 	}
 
 	// run a ADF test on the residuals 
-	isCointegrated, testStatistic := ExecADFTest(residuals, lag)
+	isCointegrated, testStatistic = ExecADFTest(residuals, lag)
 	return isCointegrated, testStatistic
 }
 
@@ -132,7 +132,7 @@ func ExecCointegratedADFTest(seriesX, seriesY []float64, lag int) (bool, float64
 	making them stationary when looked at together. This test 
 	is suitable for multiple series (n >= 2).
 */
-func ExecJohansenTest(series [][]float64, lag int) (bool, float64) {
+func ExecJohansenTest(series [][]float64, lag int) (isCointegrated bool, testStatistic float64) {
     // Convert the series to a matrix
     return true, 0.0
 }
@@ -165,7 +165,7 @@ func CalcStandardDeviation(series []float64) float64 {
 	run a regression between one indepedent variable 
 	and one dependent variable
 */
-func SimpleLinearRegression(x, y []float64) (float64, float64) {
+func SimpleLinearRegression(x, y []float64) (alpha float64, beta float64) {
 	return stat.LinearRegression(x, y, nil, false)
 }
 
@@ -179,7 +179,7 @@ func MultipleLinearRegression(seriesY []float64, seriesX ...[]float64) (float64,
 }
 
 // helper function for finding range of a data set
-func rangeOf(series []float64) float64 {
+func rangeOf(series []float64) (dataRange float64) {
 	min, max := series[0], series[0]
 	for _, v := range series {
 		min = math.Min(min, v)
