@@ -5,6 +5,7 @@ import (
 	"math"
 	"github.com/berkmancenter/adf"
 	"gonum.org/v1/gonum/stat"
+	// "gonum.org/v1/gonum/mat"
 )
 
 /*
@@ -131,8 +132,9 @@ func ExecCointegratedADFTest(seriesX, seriesY []float64, lag int) (bool, float64
 	making them stationary when looked at together. This test 
 	is suitable for multiple series (n >= 2).
 */
-func ExecJohansenTest() {
-
+func ExecJohansenTest(series [][]float64, lag int) (bool, float64) {
+    // Convert the series to a matrix
+    return true, 0.0
 }
 
 /*
