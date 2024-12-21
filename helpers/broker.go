@@ -15,9 +15,9 @@ var tradeClient *alpaca.Client
 func createOrReturnTradeClient() {
 	if tradeClient == nil {
 		tradeClient = alpaca.NewClient(alpaca.ClientOpts{
-			APIKey: os.Getenv("BROKER_PAPER_API_KEY"),
-			APISecret: os.Getenv("BROKER_PAPER_SECRET_KEY"),
-			BaseURL: os.Getenv("PAPER_URL"),
+			APIKey: os.Getenv("BROKER_API_KEY"),
+			APISecret: os.Getenv("BROKER_SECRET_KEY"),
+			BaseURL: os.Getenv("BROKER_URL"),
 		})
 	}
 }

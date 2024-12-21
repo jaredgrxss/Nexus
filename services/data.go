@@ -84,7 +84,7 @@ func DataService() {
 			marketdata.IEX,
 			stream.WithTrades(tradeHandler, "AAPL"),
 			stream.WithBars(barHandler, "AAPL"),
-			stream.WithCredentials(os.Getenv("BROKER_PAPER_API_KEY"), os.Getenv("BROKER_PAPER_SECRET_KEY")),
+			stream.WithCredentials(os.Getenv("BROKER_API_KEY"), os.Getenv("BROKER_SECRET_KEY")),
 		)
 
 		// add logic to subscribe to trades, quotes, and bars for a list of stocks here
