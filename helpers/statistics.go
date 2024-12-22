@@ -3,8 +3,6 @@ package helpers
 import (
 	"errors"
 	"math"
-	"runtime/trace"
-
 	"github.com/berkmancenter/adf"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/stat"
