@@ -17,13 +17,15 @@ Resources:
           PortMappings:
             - ContainerPort: 80
           Environment:
-            - Name: Service
+            - Name: SERVICE
               Value: Reversion
             - Name: ENV
               Value: staging
-            - Name: passphrase
+            - Name: PASSPHRASE
               Value: staging/Nexus/passphrase
-            - Name: env-file
+            - Name: REGION
+              Value: us-east-2
+            - Name: ENV_FILE
               Value: .env-staging.gpg
 
           Essential: true

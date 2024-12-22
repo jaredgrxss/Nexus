@@ -212,10 +212,9 @@ func RetrieveSecret(secretName string) (string, error) {
 
 // helper to decrypt env file with a specific password
 func DecryptEnvFile(password string, envFileName string) error {
-	cmd := exec.Command("gpg", "--batch", "--yes", "--passphrase", password, "--output", ".env", "-decrypt", envFileName)
+	cmd := exec.Command("gpg", "--batch", "--yes", "--passphrase", password, "--output", ".env", "--decrypt", envFileName)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
-
 	err := cmd.Run()
 	if err != nil {
 		return err

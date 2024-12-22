@@ -1,4 +1,4 @@
-package data
+package services
 
 import (
 	"context"
@@ -83,9 +83,8 @@ func DataService() {
 		streamClient := stream.NewStocksClient(
 			marketdata.IEX,
 			stream.WithTrades(tradeHandler, "AAPL"),
-			stream.WithQuotes(quoteHandler, "AAPL"),
 			stream.WithBars(barHandler, "AAPL"),
-			stream.WithCredentials(os.Getenv("BROKER_PAPER_API_KEY"), os.Getenv("BROKER_PAPER_SECRET_KEY")),
+			stream.WithCredentials(os.Getenv("BROKER_API_KEY"), os.Getenv("BROKER_SECRET_KEY")),
 		)
 
 		// add logic to subscribe to trades, quotes, and bars for a list of stocks here
@@ -106,7 +105,7 @@ func DataService() {
 			os.Exit(0)
 		}()
 
-		// block to keep the service alive
+		// block channel to keep the service alive
 		<-ctx.Done()
 		log.Println("Client terminated connection or keyboard interrupt, shutting down.")
 
@@ -148,37 +147,36 @@ func tradeHandler(t stream.Trade) {
 }
 
 // handler for real time quotes
-func quoteHandler(q stream.Quote) {
-	// construct message via struct
-	quoteData := QuoteData{
-		AskExchange: q.AskExchange,
-		AskPrice: q.AskPrice,
-		AskSize: q.AskSize,
-		BidExchange: q.BidExchange,
-		BidPrice: q.BidPrice,
-		BidSize: q.BidSize,
-		Conditions: q.Conditions,
-		Symbol: q.Symbol,
-		Tape: q.Tape,
-		Timestamp: q.Timestamp,
-	}
+// func quoteHandler(q stream.Quote) {
+// 	// construct message via struct
+// 	quoteData := QuoteData{
+// 		AskExchange: q.AskExchange,
+// 		AskPrice: q.AskPrice,
+// 		AskSize: q.AskSize,
+// 		BidExchange: q.BidExchange,
+// 		BidPrice: q.BidPrice,
+// 		BidSize: q.BidSize,
+// 		Conditions: q.Conditions,
+// 		Symbol: q.Symbol,
+// 		Tape: q.Tape,
+// 		Timestamp: q.Timestamp,
+// 	}
 
-	// marshal struct into JSON
-	jsonData, err := json.Marshal(quoteData)
-	if err != nil {
-		log.Println("Error in marshalling trade data struct to JSON:", err)
-		return
-	}
+// 	// marshal struct into JSON
+// 	jsonData, err := json.Marshal(quoteData)
+// 	if err != nil {
+// 		log.Println("Error in marshalling trade data struct to JSON:", err)
+// 		return
+// 	}
 
-	// publish message
-	messageID, err := helpers.PublishSNSMessage(string(jsonData), os.Getenv("DATA_SNS"))
-	if err != nil {
-		log.Println("Error in publishing live quote data:", err)
-		return
-	}
-	log.Println("Successfully posted live quote data. MessageID:", messageID)
-
-}
+// 	// publish message
+// 	messageID, err := helpers.PublishSNSMessage(string(jsonData), os.Getenv("DATA_SNS"))
+// 	if err != nil {
+// 		log.Println("Error in publishing live quote data:", err)
+// 		return
+// 	}
+// 	log.Println("Successfully posted live quote data. MessageID:", messageID)
+// }
 
 // handler for real time bars
 func barHandler(b stream.Bar) {

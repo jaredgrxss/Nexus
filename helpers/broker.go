@@ -15,15 +15,15 @@ var tradeClient *alpaca.Client
 func createOrReturnTradeClient() {
 	if tradeClient == nil {
 		tradeClient = alpaca.NewClient(alpaca.ClientOpts{
-			APIKey: os.Getenv("BROKER_PAPER_API_KEY"),
-			APISecret: os.Getenv("BROKER_PAPER_SECRET_KEY"),
-			BaseURL: os.Getenv("PAPER_URL"),
+			APIKey: os.Getenv("BROKER_API_KEY"),
+			APISecret: os.Getenv("BROKER_SECRET_KEY"),
+			BaseURL: os.Getenv("BROKER_URL"),
 		})
 	}
 }
 
 // check if market has opened for the day or not
-func IsMarketOpen() (bool, error) {
+func IsMarketOpen() (isMarketOpen bool, Error error) {
 	// make sure we have an active broker connection
 	createOrReturnTradeClient()
 	clock, err := tradeClient.GetClock()
@@ -39,7 +39,7 @@ func IsMarketOpen() (bool, error) {
 }
 
 // gather how many minutes till market close
-func MinutesTillMarketClose() (time.Duration, error) {
+func MinutesTillMarketClose() (minutesTilClose time.Duration, Error error) {
 	// make sure we have an active broker connection
 	createOrReturnTradeClient()
 	clock, err := tradeClient.GetClock()
