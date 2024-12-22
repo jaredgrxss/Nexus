@@ -163,7 +163,10 @@ func ExecJohansenTest(series [][]float64, lag int) (isCointegrated bool, testSta
 	var qr mat.QR 
 	qr.Factorize(laggedMat)
 	var residuals mat.Dense
-	qr.SolveTo(&residuals, false, differencedMat)
+	err := qr.SolveTo(&residuals, false, differencedMat)
+	if err != nil {
+		return false, 0, err
+	}
 
 	// compute the covariance matrix of the residuals
 	covResiduals := computeCovarianceMatrix(&residuals)
