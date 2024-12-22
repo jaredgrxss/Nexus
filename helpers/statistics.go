@@ -3,9 +3,11 @@ package helpers
 import (
 	"errors"
 	"math"
+	"runtime/trace"
+
 	"github.com/berkmancenter/adf"
+	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/stat"
-	// "gonum.org/v1/gonum/mat"
 )
 
 /*
@@ -127,14 +129,68 @@ func ExecCointegratedADFTest(seriesX, seriesY []float64, lag int) (isCointegrate
 }
 
 /*
-	The johansen test is used in statitistics to determine 
+	The johansen test is used in statistics to determine 
 	if a combination of two individual series is cointegrated, 
 	making them stationary when looked at together. This test 
 	is suitable for multiple series (n >= 2).
 */
-func ExecJohansenTest(series [][]float64, lag int) (isCointegrated bool, testStatistic float64) {
-    // Convert the series to a matrix
-    return true, 0.0
+func ExecJohansenTest(series [][]float64, lag int) (isCointegrated bool, testStatistic float64, Error error) {
+    if len(series) == 0 || len(series[0]) == 0 {
+		return false, 0, errors.New("time series cannot be empty")
+	}
+	nRows, nCols := len(series), len(series[0])
+	// create lagged and differenced series 
+	lagged := make([][]float64, nRows - lag)
+	differenced := make([][]float64, nRows - 1)
+
+	for i := lag; i < nRows; i++ {
+		laggedRow := make([]float64, nCols)
+		copy(laggedRow, series[i - lag])
+		lagged[i - lag] = laggedRow
+	}
+
+	for i := 1; i < nRows; i++ {
+		diffRow := make([]float64, nCols)
+		for j := 0; j < nCols; j++ {
+			diffRow[j] = series[i][j] - series[i - 1][j]
+		}
+		differenced[i - 1] = diffRow
+	}
+
+	// convert differenced and lagged series to matrices
+	laggedMat := mat.NewDense(len(lagged), nCols, flatten2DArray(lagged))
+	differencedMat := mat.NewDense(len(differenced), nCols, flatten2DArray(differenced))
+
+	// compute residuals using oridinary least squares regression
+	var qr mat.QR 
+	qr.Factorize(laggedMat)
+	var residuals mat.Dense
+	qr.SolveTo(&residuals, false, differencedMat)
+
+	// compute the covariance matrix of the residuals
+	covResiduals := computeCovarianceMatrix(&residuals)
+
+	// perform eigenvalue decomposition of the covariance matrix
+	var eig mat.EigenSym 
+	if !eig.Factorize(covResiduals, true) {
+		return false, 0, errors.New("eigenvalue decomposition failed")
+	}
+
+	eigenvalues := eig.Values(nil)
+
+	// calculate the trace statistic
+	traceStat := 0.0
+	for _, eig := range eigenvalues {
+		if eig > 0 {
+			traceStat += math.Log(1 - eig)
+		}
+	}
+	traceStat = -traceStat
+
+	// compare trace statistic to critical values
+	criticalValue := 15.41 // 95% confidence interval
+	isCointegrated = traceStat > criticalValue
+	return isCointegrated, traceStat, nil
 }
 
 /*
@@ -186,4 +242,31 @@ func rangeOf(series []float64) (dataRange float64) {
 		max = math.Max(max, v)
 	}
 	return max - min
+}
+
+// helper function for flattening a 2D array
+func flatten2DArray(data [][]float64) (flattenedArray []float64) {
+	flat := make([]float64, 0)
+	for _, row := range data {
+		flat = append(flat, row...)
+	}
+	return flat
+}
+
+// helper function for computing the covariance matrix
+func computeCovarianceMatrix(residuals *mat.Dense) *mat.SymDense {
+	nRows, nCols := residuals.Dims()
+	covMat := mat.NewSymDense(nCols, nil)
+	// calculate covaraicne for each pair of variables
+	for i := 0; i < nCols; i++ {
+		for j := i; j < nCols; j++ {
+			cov := 0.0
+			for r := 0; r < nRows; r++ {
+				cov += residuals.At(r, i) * residuals.At(r, j)
+			}
+			covMat.SetSym(i, j, cov / float64(nRows - 1))
+			covMat.SetSym(j, i, cov / float64(nRows - 1))
+		}
+	}
+	return covMat
 }
