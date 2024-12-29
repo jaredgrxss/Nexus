@@ -3,9 +3,11 @@ package helpers
 import (
 	"errors"
 	"math"
+	"time"
 	"github.com/berkmancenter/adf"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/stat"
+	"github.com/alpacahq/alpaca-trade-api-go/v3/marketdata"
 )
 
 /*
@@ -77,14 +79,22 @@ func CalcMeanReversionHalfLife(series []float64) (halfLife float64, Error error)
 	// prepare the lagged time series
 	x := series[:len(series)-1] // X(t - 1)
 	y := series[1:] // X(t)
+	
+	// find changes to run linear regression
+	changes := make([]float64, len(y))
+	for i := 0; i < len(y); i++ {
+		changes[i] = y[i] - x[i]
+	}
+
 	// perform a linear regression y = alpha + beta * x
-	beta, _ := stat.LinearRegression(x, y, nil, false)
-	// ensure beta is within a reasonable range
-	if beta <= 0 || beta >= 1 {
-		return 0, errors.New("beta is not within 0 and 1")
+	_, theta := stat.LinearRegression(x, changes, nil, false)
+
+	// ensure theta is within a reasonable range
+	if theta >= 0 {
+		return 0, errors.New("series does not exhibit mean reversion (theta >= 0)")
 	}
 	// use the log of the linear regressed equation to find half life
-	halfLife = math.Log(2) / -math.Log(beta)
+	halfLife = math.Log(2) / -theta
 	return halfLife, nil
 }
 
@@ -111,19 +121,17 @@ func CalcMeanReversionHalfLife(series []float64) (halfLife float64, Error error)
 		variables
 		
 */
-func ExecCointegratedADFTest(seriesX, seriesY []float64, lag int) (isCointegrated bool, testStatistic float64) {
+func ExecCointegratedADFTest(seriesX, seriesY []float64, lag int) (isCointegrated bool, testStatistic float64, ratio float64, residuals []float64) {
 	// first run, linear regression on the two data sets
-	_, beta := SimpleLinearRegression(seriesX, seriesY)
-
+	alpha, beta := SimpleLinearRegression(seriesX, seriesY)
 	// calculate the residuals off of this regression
-	residuals := make([]float64, len(seriesX))
+	residuals = make([]float64, len(seriesX))
 	for i := 0; i < len(seriesX); i++ {
-		residuals[i] = seriesY[i] - beta*seriesX[i]
+		residuals[i] = seriesY[i] - (alpha + beta*seriesX[i])
 	}
-
 	// run a ADF test on the residuals 
 	isCointegrated, testStatistic = ExecADFTest(residuals, lag)
-	return isCointegrated, testStatistic
+	return isCointegrated, testStatistic, beta, residuals
 }
 
 /*
@@ -196,6 +204,25 @@ func ExecJohansenTest(series [][]float64, lag int) (isCointegrated bool, testSta
 
 /*
 	given a certian set of time series data
+	calculate the bollinger bands for this data set.
+	using a window of 20 is a good starting point.
+	or based on the mean reversion half life of the data set.
+*/
+func CaclulateBollingerBands(series []float64, window int) (upperBand, lowerBand []float64) {
+	upperBand = make([]float64, len(series))
+	lowerBand = make([]float64, len(series))
+	for i := window; i < len(series); i++ {
+		subset := series[i - window:i]
+		mean := stat.Mean(subset, nil)
+		stdDev := stat.StdDev(subset, nil)
+		upperBand[i] = mean + 2 * stdDev
+		lowerBand[i] = mean - 2 * stdDev
+	}
+	return upperBand, lowerBand
+}
+
+/*
+	given a certian set of time series data
 	calculate the mean of this data set.
 */
 func CalcMean(series []float64) float64 {
@@ -233,6 +260,66 @@ func SimpleLinearRegression(x, y []float64) (alpha float64, beta float64) {
 */
 func MultipleLinearRegression(seriesY []float64, seriesX ...[]float64) (float64, float64) {
 	return 0.0, 0.0
+}
+
+/* 
+	helper to normalize series for bar data to ensure thorough matching of data between time stamps for two time series
+*/
+func NormalizeBarData(seriesX, seriesY []marketdata.Bar) (seriesA, seriesB []marketdata.Bar) {
+	// quick lookup of timestamps
+	seriesYMap := make(map[time.Time]marketdata.Bar)
+	for _, bar := range seriesY {
+		seriesYMap[bar.Timestamp] = bar
+	}
+
+	// loop through seriesX and match with seriesY
+	for _, bar := range seriesX {
+		if val, exist := seriesYMap[bar.Timestamp]; exist {
+			seriesA = append(seriesA, bar)
+			seriesB = append(seriesB, val)
+		}
+	}
+	return seriesA, seriesB
+}
+
+/*
+	helper to gather close data from a series of bars
+*/
+func GatherCloseData(series []marketdata.Bar) (closeData []float64) {
+	for _, bar := range series {
+		closeData = append(closeData, bar.Close)
+	}
+	return closeData
+}
+
+/*
+	helper to gather open data from a series of bars
+*/
+func GatherOpenData(series []marketdata.Bar) (openData []float64) {
+	for _, bar := range series {
+		openData = append(openData, bar.Open)
+	}
+	return openData
+}
+
+/*
+	helper to gather open data from a series of bars
+*/
+func GatherHighData(series []marketdata.Bar) (highData []float64) {
+	for _, bar := range series {
+		highData = append(highData, bar.High)
+	}
+	return highData
+}
+
+/*
+	helper to gather open data from a series of bars
+*/
+func GatherLowData(series []marketdata.Bar) (lowData []float64) {
+	for _, bar := range series {
+		lowData = append(lowData, bar.Low)
+	}
+	return lowData
 }
 
 // helper function for finding range of a data set
