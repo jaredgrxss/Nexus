@@ -76,9 +76,6 @@ func MinutesTillMarketClose() (minutesTilClose time.Duration, Error error) {
 */
 func ExecMarketOrder(order alpaca.PlaceOrderRequest) {
 	// make sure we have an active broker connection
-	createOrReturnTradeClient()
-	tradeClient.PlaceOrder(alpaca.PlaceOrderRequest{
-	})
 }
 
 /* 

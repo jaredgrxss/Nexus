@@ -208,7 +208,10 @@ func ExecJohansenTest(series [][]float64, lag int) (isCointegrated bool, testSta
 	using a window of 20 is a good starting point.
 	or based on the mean reversion half life of the data set.
 */
-func CaclulateBollingerBands(series []float64, window int) (upperBand, lowerBand []float64) {
+func CaclulateBollingerBands(series []float64, window int) (upperBand, lowerBand []float64, Error error) {
+	if len(series)	< window {
+		return nil, nil, errors.New("the length of the series must be at least the window size")
+	}
 	upperBand = make([]float64, len(series))
 	lowerBand = make([]float64, len(series))
 	for i := window; i < len(series); i++ {
@@ -218,7 +221,7 @@ func CaclulateBollingerBands(series []float64, window int) (upperBand, lowerBand
 		upperBand[i] = mean + 2 * stdDev
 		lowerBand[i] = mean - 2 * stdDev
 	}
-	return upperBand, lowerBand
+	return upperBand, lowerBand, nil
 }
 
 /*
