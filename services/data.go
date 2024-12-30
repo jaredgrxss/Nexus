@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 	"Nexus/helpers"
 	"github.com/alpacahq/alpaca-trade-api-go/v3/marketdata"
@@ -78,22 +79,27 @@ func DataService() {
 			cancel()
 		}()
 		log.Println("Market is open! Starting data service...")
-		log.Println("Trying to connect to broker data stream...")
 		// set up client and add listeners for universe
 		streamClient := stream.NewStocksClient(
 			marketdata.IEX,
-			stream.WithBars(barHandler, "AAPL"),
 			stream.WithCredentials(os.Getenv("BROKER_API_KEY"), os.Getenv("BROKER_SECRET_KEY")),
 		)
-
-		// add logic to subscribe to trades, quotes, and bars for a list of stocks here
-		
-		// connect to brokerage
+		// establish connection to brokerage
+		log.Println("Trying to connect to broker data stream...")
 		if err := streamClient.Connect(ctx); err != nil {
 			log.Fatal("Could not establish connection with error: ", err)
 		}
 		log.Println("Established brokerage connection!")
-
+		// gather entire Nexus universe, services will be responsible for filtering
+		log.Println("Adding universe to data stream...")
+		universe := strings.Split(os.Getenv("UNIVERSE"), ",")
+		for _, stock := range universe {
+			err := streamClient.SubscribeToBars(barHandler, stock)
+			if err != nil {
+				log.Println("Error in adding stock to stream:", stock, " with error:", err)
+			}
+		}
+		log.Println("Finished adding universe to data stream!")
 		// check to see if brokerage terminated our connection
 		go func() {
 			err := <-streamClient.Terminated()

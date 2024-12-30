@@ -222,8 +222,8 @@ func DecryptEnvFile(password string, envFileName string) error {
 	return nil
 }
 // helper to encrypt a specific env file with a specific password to the target envFileName
-func EncryptEnvFile(password string, envFileName string) (Error error){
-	cmd := exec.Command("gpg", "--batch", "--yes", "--symmetric", "--cipher-algo", "AES256", "--passphrase", password, "--output", envFileName, ".env")
+func EncryptEnvFile(password string, outputEncryptedFileName string) (Error error){
+	cmd := exec.Command("gpg", "--batch", "--yes", "--symmetric", "--cipher-algo", "AES256", "--passphrase", password, "--output", outputEncryptedFileName, ".env")
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	err := cmd.Run()

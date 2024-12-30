@@ -79,22 +79,21 @@ func CalcMeanReversionHalfLife(series []float64) (halfLife float64, Error error)
 	// prepare the lagged time series
 	x := series[:len(series)-1] // X(t - 1)
 	y := series[1:] // X(t)
-	
-	// find changes to run linear regression
 	changes := make([]float64, len(y))
 	for i := 0; i < len(y); i++ {
 		changes[i] = y[i] - x[i]
 	}
 
 	// perform a linear regression y = alpha + beta * x
-	_, theta := stat.LinearRegression(x, changes, nil, false)
+	_, beta := stat.LinearRegression(x, changes, nil, false)
 
 	// ensure theta is within a reasonable range
-	if theta >= 0 {
+	if beta >= 0 {
 		return 0, errors.New("series does not exhibit mean reversion (theta >= 0)")
 	}
 	// use the log of the linear regressed equation to find half life
-	halfLife = math.Log(2) / -theta
+	theta := -beta
+	halfLife = math.Log(2) / theta
 	return halfLife, nil
 }
 
@@ -145,7 +144,11 @@ func ExecJohansenTest(series [][]float64, lag int) (isCointegrated bool, testSta
 		return false, 0, errors.New("time series cannot be empty")
 	}
 	nRows, nCols := len(series), len(series[0])
-	// create lagged and differenced series 
+	if lag <= 0 || lag >= nRows {
+		return false, 0, errors.New("lag must be greater than 0 and less than the number of rows")
+	}
+
+	// Create lagged and differenced series 
 	lagged := make([][]float64, nRows - lag)
 	differenced := make([][]float64, nRows - 1)
 
