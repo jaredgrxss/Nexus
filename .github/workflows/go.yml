@@ -26,46 +26,57 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix: 
-        go-version: [1.22]
+        python-version: [3.9, 3.10]
     steps:
     - uses: actions/checkout@v4
-    # Setup Go 
-    - name: Set up Go version
-      uses: actions/setup-go@v4
+
+    # Setup Python 
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
       with:
-        go-version: ${{ matrix.go-version }}
+        python-version: ${{ matrix.python-version }}
+
     # Cache modules
     - name: Cache modules and dependencies
       uses: actions/cache@v4
       with: 
         path: |
-          ~/.cache/go-build
-          ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum')}}
+          ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt')}}
         restore-keys: |
-          ${{ runner.os }}-go-
+          ${{ runner.os }}-pip-
+    
+    # Install dependencies
+    - name: Install dependencies
+      run: pip install -r requirements.txt
+
     # Linting installation
     - name: Install linter
       run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+    # Install linter 
+    - name: Install liner (flake8)
+      run: pip install flake8
+
     # Run linter
     - name: Run linter
-      run: golangci-lint run ./...
-    # Build
-    - name: Build application
-      run: go build -v ./...
-    # Test
+      run: flake8 .
+
+    # Run test
     - name: Run test suite
       run: |
-        go test -coverprofile=coverage.out -v ./...
-        go tool cover -func=coverage.out
+        pip install pytest pytest-cov
+        pytest --cov-report=xml --cov=./
+
     # Upload code coverage
     - name: Upload coverage 
       uses: codecov/codecov-action@v5
       with: 
-        files: coverage.out
+        files: coverage.xml
         flags: unittests
         token: ${{ secrets.CODECOV_TOKEN }}
         fail_ci_if_error: true
+
     # Scan for hardcoded secrets in code
     - name: Secret detection
       uses: gitleaks/gitleaks-action@v1
@@ -73,7 +84,6 @@ jobs:
         path: .
         exit-code: 1
         verbose: true
-
 
 
   # build and push docker image to ecr
