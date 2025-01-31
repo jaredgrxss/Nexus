@@ -9,8 +9,7 @@ class Logger:
         self.logger.setLevel(logging.DEBUG)
         # Custom formatter
         fmt = logging.Formatter(
-            '''%(name)s %(asctime)s %(levelname)s
-            %(filename)s %(lineno)s %(process)d %(message)s'''
+            '''%(name)s %(asctime)s %(levelname)s %(filename)s %(lineno)s %(process)d %(message)s'''
         )
         # Stream handler
         errHandler = logging.FileHandler('error.log')

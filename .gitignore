@@ -30,6 +30,8 @@ go.work.sum
 # Error logs
 error.log
 
+# egg
+Nexus.egg-info
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

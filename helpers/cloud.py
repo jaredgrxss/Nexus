@@ -8,15 +8,36 @@ from botocore.exceptions import (
                                  PartialCredentialsError
                                  )
 
-# Initialize AWS clients with a session for better resource management
-session = boto3.Session(
-    aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
-    aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'),
-    region_name=os.environ.get('AWS_REGION', 'us-east-2')
-)
-sns_client = session.client('sns')
-sqs_client = session.client('sqs')
-secretsmanager_client = session.client('secretsmanager')
+# Initialize a placeholder for AWS clients
+aws_clients = None
+
+
+def get_aws_clients():
+    """
+    Lazily initializes and returns AWS clients.
+    Ensures environment variables are loaded before creating clients.
+    """
+    session = boto3.Session(
+        aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
+        aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'),
+        region_name=os.environ.get('AWS_REGION')
+    )
+    return {
+        'sns': session.client('sns'),
+        'sqs': session.client('sqs'),
+        'secretsmanager': session.client('secretsmanager'),
+    }
+
+
+def get_client(service):
+    """
+    Returns an AWS client for the specified service.
+    Initializes the clients if they haven't been initialized yet.
+    """
+    global aws_clients
+    if aws_clients is None:
+        aws_clients = get_aws_clients()
+    return aws_clients[service]
 
 
 def publish_sns_message(data: str, topic: str) -> dict:
@@ -35,6 +56,7 @@ def publish_sns_message(data: str, topic: str) -> dict:
         PartialCredentialsError: If AWS credentials are incomplete.
         ClientError: If there is an error publishing the message.
     """
+    sns_client = get_client('sns')
     try:
         response = sns_client.publish(
             TopicArn=topic,
@@ -70,6 +92,7 @@ def poll_sqs_message(
         PartialCredentialsError: If AWS credentials are incomplete.
         ClientError: If there is an error polling messages.
     """
+    sqs_client = get_client('sqs')
     try:
         response = sqs_client.receive_message(
             QueueUrl=queue_url,
@@ -96,6 +119,7 @@ def delete_sqs_message(queue_url: str, receipt_handle: str) -> None:
         PartialCredentialsError: If AWS credentials are incomplete.
         ClientError: If there is an error deleting the message.
     """
+    sqs_client = get_client('sqs')
     try:
         sqs_client.delete_message(
             QueueUrl=queue_url,
@@ -123,6 +147,7 @@ def subscribe_sqs_to_sns(queue_arn: str, topic_arn: str) -> dict:
         PartialCredentialsError: If AWS credentials are incomplete.
         ClientError: If there is an error subscribing the queue to the topic.
     """
+    sns_client = get_client('sns')
     try:
         response = sns_client.subscribe(
             Protocol='sqs',
@@ -153,6 +178,7 @@ def retrieve_secret(secret_name: str) -> dict:
         PartialCredentialsError: If AWS credentials are incomplete.
         ClientError: If there is an error retrieving the secret.
     """
+    secretsmanager_client = get_client('secretsmanager')
     try:
         response = secretsmanager_client.get_secret_value(
             SecretId=secret_name,

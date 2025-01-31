@@ -1,9 +1,9 @@
 import os
-from logger import Logger
+from helpers import logger
 from alpaca.trading.client import TradingClient
 from alpaca.trading.requests import MarketOrderRequest, LimitOrderRequest
 from alpaca.trading.enums import OrderSide, TimeInForce
-from alpaca.data import StockhistoricalDataClient
+from alpaca.data import StockHistoricalDataClient
 from alpaca.data.requests import (
                                   StockBarsRequest,
                                   StockQuotesRequest,
@@ -14,18 +14,41 @@ from datetime import datetime
 from typing import Optional, List
 
 # Initialize logger
-logger = Logger('broker.py')
+logger = logger.Logger('broker.py')
 
-# Intialize clients for reuse
-trading_client = TradingClient(
-    os.environ.get('BROKER_API_KEY'),
-    os.environ.get('BROKER_SECRET_KEY'),
-    paper=False if os.environ.get('ENV') == 'production' else True
-)
-stock_client = StockhistoricalDataClient(
-    os.environ.get('ALPACA_API_KEY'),
-    os.environ.get('ALPACA_SECRET_KEY')
-)
+# Initialize a placeholder for Alpaca clients
+alpaca_clients = None
+
+
+def get_alpaca_clients():
+    """
+    Lazily initializes and returns Alpaca clients.
+    Ensures environment variables are loaded before creating clients.
+    """
+    trading_client = TradingClient(
+        os.getenv('BROKER_API_KEY'),
+        os.getenv('BROKER_SECRET_KEY'),
+        paper=False if os.environ.get('ENV') == 'production' else True
+    )
+    stock_client = StockHistoricalDataClient(
+        os.getenv('BROKER_API_KEY'),
+        os.getenv('BROKER_SECRET_KEY')
+    )
+    return {
+        'trading': trading_client,
+        'stock': stock_client,
+    }
+
+
+def get_broker_client(service):
+    """
+    Returns an Alpaca client for the specified service.
+    Initializes the clients if they haven't been initialized yet.
+    """
+    global alpaca_clients
+    if alpaca_clients is None:
+        alpaca_clients = get_alpaca_clients()
+    return alpaca_clients[service]
 
 
 def is_market_open() -> bool:
@@ -35,6 +58,7 @@ def is_market_open() -> bool:
     Returns:
         bool: True if the market is open, False otherwise.
     """
+    trading_client = get_broker_client('trading')
     try:
         # Get the market clock
         clock = trading_client.get_clock()
@@ -51,6 +75,7 @@ def minutes_till_market_close() -> int:
         int: The number of minutes until the market closes.
         Returns 0 if the market is closed.
     """
+    trading_client = get_broker_client('trading')
     try:
         # Get the market clock
         clock = trading_client.get_clock()
@@ -68,6 +93,30 @@ def minutes_till_market_close() -> int:
         raise Exception(
                 f"Failed to calculate minutes until market close: {e}"
             ) from e
+
+
+def minutes_till_market_open() -> int:
+    """
+    Calculates and returns the time until the market reopens.
+    """
+    trading_client = get_broker_client('trading')
+    try:
+        # Get the market clock 
+        clock = trading_client.get_clock()
+        if clock.is_open:
+            return 0
+        else:
+            # Calculate the time until next market open
+            next_open = clock.next_open
+            now = datetime.now(next_open.tzinfo)  # Ensure timezone awareness
+            time_until_open = next_open - now
+            # Convert the time difference to total minutes 
+            total_minutes = int(time_until_open.total_seconds() // 60)
+            return total_minutes
+    except Exception as e:
+        raise Exception(
+            f"Failed to calculate minutes until market open: {e}"
+        ) from e
 
 
 def place_market_order(
@@ -91,6 +140,7 @@ def place_market_order(
     Raises:
         Exception: If the order placement fails.
     """
+    trading_client = get_broker_client('trading')
     try:
         # Create a market order request
         market_order = MarketOrderRequest(
@@ -131,6 +181,7 @@ def place_limit_order(
     Raises:
         Exception: If the order placement fails.
     """
+    trading_client = get_broker_client('trading')
     try:
         # Create a limit order request
         limit_order = LimitOrderRequest(
@@ -174,6 +225,7 @@ def get_historical_bar_data(
         dict: A dictionary containing historical bar data
         for the specified symbols.
     """
+    stock_client = get_broker_client('stock')
     request = StockBarsRequest(
         symbol_or_symbols=symbols,
         timeframe=timeframe,
@@ -205,6 +257,7 @@ def get_historical_quote_data(
         dict: A dictionary containing historical quote data
                 for the specified symbols.
     """
+    stock_client = get_broker_client('stock')
     request = StockQuotesRequest(
         symbol_or_symbols=symbols,
         start=start_date,
@@ -235,6 +288,7 @@ def get_historical_trade_data(
         dict: A dictionary containing historical trade data
               for the specified symbols.
     """
+    stock_client = get_broker_client('stock')
     request = StockTradesRequest(
         symbol_or_symbols=symbols,
         start=start_date,
