@@ -25,3 +25,6 @@ go.work.sum
 *.env-staging
 *.env-production
 *.env
+
+# Error logs
+error.log

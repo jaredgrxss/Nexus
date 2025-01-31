@@ -5,6 +5,7 @@ from botocore.exceptions import ClientError, NoCredentialsError, PartialCredenti
 session = boto3.Session(
     aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
     aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'),
+    region_name=os.environ.get('AWS_REGION', 'us-east-1') # Default to us-east-1 if not specified
 )
 sns_client = session.client('sns')
 sqs_client = session.client('sqs')
@@ -169,11 +170,13 @@ def decrypt_env_file(password: str, env_file: str, output_file: str = ".env") ->
         if not decrypted_data.ok:
             raise Exception('Failed to decrypt file.')
         
+        # Split the decrypted data into lines and remove empty lines
+        lines = [line.strip() for line in str(decrypted_data).splitlines() if line.strip()]
+        
         # Write the decrypted data to the output file
         with open(output_file, 'w') as file:
-            file.write(str(decrypted_data))
+            file.write('\n'.join(lines))
         
-        print(f"Decrypted environment variables saved to {output_file}")
     except Exception as e:
         raise Exception(f"Failed to decrypt environment file: {e}") from e
     

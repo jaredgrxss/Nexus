@@ -1,19 +1,31 @@
-from pythonjsonlogger import jsonlogger
 import sys
+import logging
 
 class Logger:
     def __init__(self, filename: str):
         # Set up logger
-        self.logger = jsonlogger.JsonLogger(filename)
-        self.logger.setLevel(jsonlogger.DEBUG)
+        self.logger = logging.getLogger(filename)
+        self.logger.setLevel(logging.DEBUG)
+        
         # Custom formatter
-        fmt = self.logger.JsonFormatter(
-            '%(name)s %(asctime)s %(levelname)s %(filename)s %(lineno)s %(process)d %(message)s',
-            rename_fields={'levelname': 'severity', 'asctime': 'timestamp'}
+        fmt = logging.Formatter(
+            '%(name)s %(asctime)s %(levelname)s %(filename)s %(lineno)s %(process)d %(message)s'
         )
         # Stream handler
-        stdoutHandler = jsonlogger.StreamHandler(stream=sys.stdout)
+        errHandler = logging.FileHandler('error.log')
+        stdoutHandler = logging.StreamHandler(stream=sys.stdout)
+        
+        # Set levels
+        stdoutHandler.setLevel(logging.DEBUG)
+        errHandler.setLevel(logging.ERROR)
+        
+        # Set formatting
         stdoutHandler.setFormatter(fmt)
+        errHandler.setFormatter(fmt)
+        
+        # Add handlers
+        self.logger.addHandler(stdoutHandler)
+        self.logger.addHandler(errHandler)
         
     def debug(self, message: str):
         self.logger.debug(message)
