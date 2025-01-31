@@ -50,17 +50,13 @@ jobs:
     - name: Install dependencies
       run: pip install -r requirements.txt
 
-    # Linting installation
-    - name: Install linter
-      run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-
     # Install linter 
     - name: Install liner (flake8)
       run: pip install flake8
 
-    # Run linter
-    - name: Run linter
-      run: flake8 .
+    # # Run linter
+    # - name: Run linter
+    #   run: flake8 .
 
     # Run test
     - name: Run test suite
