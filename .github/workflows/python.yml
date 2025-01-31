@@ -26,46 +26,56 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix: 
-        go-version: [1.22]
+        python-version: [3.12]
     steps:
     - uses: actions/checkout@v4
-    # Setup Go 
-    - name: Set up Go version
-      uses: actions/setup-go@v4
+
+    # Setup Python 
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
       with:
-        go-version: ${{ matrix.go-version }}
+        python-version: ${{ matrix.python-version }}
+
     # Cache modules
     - name: Cache modules and dependencies
       uses: actions/cache@v4
       with: 
         path: |
-          ~/.cache/go-build
-          ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum')}}
+          ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt')}}
         restore-keys: |
-          ${{ runner.os }}-go-
-    # Linting installation
-    - name: Install linter
-      run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+          ${{ runner.os }}-pip-
+    
+    # Install dependencies
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+        pip install -r requirements.txt
+
+    # Install linter 
+    - name: Install liner (flake8)
+      run: pip install flake8
+
     # Run linter
     - name: Run linter
-      run: golangci-lint run ./...
-    # Build
-    - name: Build application
-      run: go build -v ./...
-    # Test
+      run: flake8 .
+
+    # Run test
     - name: Run test suite
       run: |
-        go test -coverprofile=coverage.out -v ./...
-        go tool cover -func=coverage.out
+        pip install pytest pytest-cov
+        pytest --cov-report=xml --cov=./
+
     # Upload code coverage
     - name: Upload coverage 
       uses: codecov/codecov-action@v5
       with: 
-        files: coverage.out
+        files: coverage.xml
         flags: unittests
         token: ${{ secrets.CODECOV_TOKEN }}
         fail_ci_if_error: true
+
     # Scan for hardcoded secrets in code
     - name: Secret detection
       uses: gitleaks/gitleaks-action@v1
@@ -75,9 +85,8 @@ jobs:
         verbose: true
 
 
-
   # build and push docker image to ecr
-  build-and-push-image:
+  staging-build-and-push-image:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     needs: [build-and-test]
@@ -137,7 +146,7 @@ jobs:
         aws cloudformation describe-stacks --stack-name NexusCommonDeployment
   
   # # deploying cf for data service
-  # data-staging-cloudformation:
+  # staging-data-cloudformation:
   #   if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.inputs.deployService == 'data'
   #   runs-on: ubuntu-latest
   #   needs: [build-and-test, staging-common-cloudformation]
@@ -174,7 +183,7 @@ jobs:
   #           aws cloudformation describe-stacks --stack-name NexusDataDeployment
 
   # # deploying cf for reversion service
-  # reversion-staging-cloudformation:
+  # staging-reversion-cloudformation:
   #   if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.inputs.deployService == 'reversion'
   #   runs-on: ubuntu-latest
   #   needs: [build-and-test, staging-common-cloudformation]
@@ -211,7 +220,7 @@ jobs:
   #           aws cloudformation describe-stacks --stack-name NexusReversionDeployment
   
   # # data service deployment
-  # data-staging-deployment:
+  # staging-data-deployment:
   #   if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.inputs.deployService == 'data'
   #   runs-on: ubuntu-latest
   #   needs: [build-and-test, build-and-push-image, staging-common-cloudformation, data-staging-cloudformation]
@@ -249,7 +258,7 @@ jobs:
   #         aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --task-definition $NEW_TASK_DEF_ARN
 
   # # reversion service deployment
-  # reversion-staging-deployment:
+  # staging-reversion-deployment:
     # if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.inputs.deployService == 'reversion'
     # runs-on: ubuntu-latest
     # needs: [build-and-test, staging-common-cloudformation, reversion-staging-cloudformation]

@@ -1,36 +1,35 @@
 # Using Go image for 1.21.6
-FROM golang:1.22 as builder
-
-# Install helper for the enviornment variables
-RUN apt-get update && apt-get install -y gnupg && rm -rf /var/lib/apt/list/*
+FROM python:3.9-slim as builder
 
 # Set working directory
 WORKDIR /app 
 
-# Copy go modules and manifests
-COPY go.mod go.sum ./
-RUN go mod download
+# Install system dependencies (including gpg)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gpg \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy rest of source code
-COPY . . 
+# Copy requirements file
+COPY requirements.txt .
 
-# Build the Go app
-RUN go build -o Nexus
+# Install python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Create final image that is lightweight 
-FROM debian:bullseye-slim
+# Copy source code
+COPY . .
 
-# Install runtime libs
-RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+# Final lightweight image
+FROM python:3.9-slim
 
-# Set working directory 
-WORKDIR /root/
+# Set working directory
+WORKDIR /app
 
-# Copy binary from building stage
-COPY --from=builder /app/Nexus .
+# Copy installed dependencies from the builder stage
+COPY --from=builder /usr/local/lib/python3.9/site-packages /usr/local/lib/python3.9/site-packages
+COPY --from=builder /app /app
 
 # Expose port 
 EXPOSE 8080
 
 # Command to run application 
-CMD ["./Nexus"]
+CMD ["python", "app.py"]

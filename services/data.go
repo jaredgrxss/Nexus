@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 	"Nexus/helpers"
 	"github.com/alpacahq/alpaca-trade-api-go/v3/marketdata"
@@ -77,24 +78,28 @@ func DataService() {
 			<-s
 			cancel()
 		}()
-		
-		log.Println("Trying to connect to broker data stream")
+		log.Println("Market is open! Starting data service...")
 		// set up client and add listeners for universe
 		streamClient := stream.NewStocksClient(
 			marketdata.IEX,
-			stream.WithTrades(tradeHandler, "AAPL"),
-			stream.WithBars(barHandler, "AAPL"),
 			stream.WithCredentials(os.Getenv("BROKER_API_KEY"), os.Getenv("BROKER_SECRET_KEY")),
 		)
-
-		// add logic to subscribe to trades, quotes, and bars for a list of stocks here
-		
-		// connect to brokerage
+		// establish connection to brokerage
+		log.Println("Trying to connect to broker data stream...")
 		if err := streamClient.Connect(ctx); err != nil {
 			log.Fatal("Could not establish connection with error: ", err)
 		}
 		log.Println("Established brokerage connection!")
-
+		// gather entire Nexus universe, services will be responsible for filtering
+		log.Println("Adding universe to data stream...")
+		universe := strings.Split(os.Getenv("UNIVERSE"), ",")
+		for _, stock := range universe {
+			err := streamClient.SubscribeToBars(barHandler, stock)
+			if err != nil {
+				log.Println("Error in adding stock to stream:", stock, " with error:", err)
+			}
+		}
+		log.Println("Finished adding universe to data stream!")
 		// check to see if brokerage terminated our connection
 		go func() {
 			err := <-streamClient.Terminated()
@@ -115,36 +120,35 @@ func DataService() {
 }
 
 // handler for real time trades
-func tradeHandler(t stream.Trade) {
-	// construct message via struct
-	tradeData := TradeData{
-		Exchange: t.Exchange,
-		Condition: t.Conditions,
-		ID: t.ID,
-		Price: t.Price,
-		Size: t.Size,
-		Symbol: t.Symbol,
-		Tape: t.Tape,
-		Timestamp: t.Timestamp,
-	}
+// func tradeHandler(t stream.Trade) {
+// 	// construct message via struct
+// 	tradeData := TradeData{
+// 		Exchange: t.Exchange,
+// 		Condition: t.Conditions,
+// 		ID: t.ID,
+// 		Price: t.Price,
+// 		Size: t.Size,
+// 		Symbol: t.Symbol,
+// 		Tape: t.Tape,
+// 		Timestamp: t.Timestamp,
+// 	}
 
-	// marshal struct into JSON
-	jsonData, err := json.Marshal(tradeData)
-	if err != nil {
-		log.Println("Error in marshalling trade data struct to JSON:", err)
-		return
-	}
+// 	// marshal struct into JSON
+// 	jsonData, err := json.Marshal(tradeData)
+// 	if err != nil {
+// 		log.Println("Error in marshalling trade data struct to JSON:", err)
+// 		return
+// 	}
 
-	// publish message to the SNS topic
-	messageID, err := helpers.PublishSNSMessage(string(jsonData), os.Getenv("DATA_SNS"))
+// 	// publish message to the SNS topic
+// 	messageID, err := helpers.PublishSNSMessage(string(jsonData), os.Getenv("DATA_SNS"))
 
-	if err != nil {
-		log.Println("Error in publishing live trade data:", err)
-		return
-	}
-	log.Println("Successfully posted live trade data. MessageID:", messageID)
-
-}
+// 	if err != nil {
+// 		log.Println("Error in publishing live trade data:", err)
+// 		return
+// 	}
+// 	log.Println("Successfully posted live trade data. MessageID:", messageID)
+// }
 
 // handler for real time quotes
 // func quoteHandler(q stream.Quote) {
