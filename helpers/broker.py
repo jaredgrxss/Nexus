@@ -1,7 +1,6 @@
 
 
 
-
 def is_market_open() -> bool:
     pass 
 
