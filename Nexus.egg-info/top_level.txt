@@ -1,3 +1,0 @@
-helpers
-services
-test
