@@ -83,7 +83,7 @@ jobs:
 
 
   # build and push docker image to ecr
-  build-and-push-image:
+  staging-build-and-push-image:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     needs: [build-and-test]
@@ -143,7 +143,7 @@ jobs:
         aws cloudformation describe-stacks --stack-name NexusCommonDeployment
   
   # # deploying cf for data service
-  # data-staging-cloudformation:
+  # staging-data-cloudformation:
   #   if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.inputs.deployService == 'data'
   #   runs-on: ubuntu-latest
   #   needs: [build-and-test, staging-common-cloudformation]
@@ -180,7 +180,7 @@ jobs:
   #           aws cloudformation describe-stacks --stack-name NexusDataDeployment
 
   # # deploying cf for reversion service
-  # reversion-staging-cloudformation:
+  # staging-reversion-cloudformation:
   #   if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.inputs.deployService == 'reversion'
   #   runs-on: ubuntu-latest
   #   needs: [build-and-test, staging-common-cloudformation]
@@ -217,7 +217,7 @@ jobs:
   #           aws cloudformation describe-stacks --stack-name NexusReversionDeployment
   
   # # data service deployment
-  # data-staging-deployment:
+  # staging-data-deployment:
   #   if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.inputs.deployService == 'data'
   #   runs-on: ubuntu-latest
   #   needs: [build-and-test, build-and-push-image, staging-common-cloudformation, data-staging-cloudformation]
@@ -255,7 +255,7 @@ jobs:
   #         aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --task-definition $NEW_TASK_DEF_ARN
 
   # # reversion service deployment
-  # reversion-staging-deployment:
+  # staging-reversion-deployment:
     # if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.inputs.deployService == 'reversion'
     # runs-on: ubuntu-latest
     # needs: [build-and-test, staging-common-cloudformation, reversion-staging-cloudformation]
