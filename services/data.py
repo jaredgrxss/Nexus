@@ -67,7 +67,9 @@ def run() -> None:
         try:
             # Check if the market is open
             if not broker.is_market_open():
-                logger.info(f"Market is closed. Will reopen in {broker.minutes_till_market_open()} minutes... Sleeping for 1 minute.")
+                logger.info(
+                    f"Market is closed. Reopens in {broker.minutes_till_market_open()} minutes... sleeping for 1 minute."
+                )
                 time.sleep(60)
                 continue
 

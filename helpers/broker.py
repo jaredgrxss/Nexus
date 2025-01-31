@@ -101,7 +101,7 @@ def minutes_till_market_open() -> int:
     """
     trading_client = get_broker_client('trading')
     try:
-        # Get the market clock 
+        # Get the market clock
         clock = trading_client.get_clock()
         if clock.is_open:
             return 0
@@ -110,7 +110,7 @@ def minutes_till_market_open() -> int:
             next_open = clock.next_open
             now = datetime.now(next_open.tzinfo)  # Ensure timezone awareness
             time_until_open = next_open - now
-            # Convert the time difference to total minutes 
+            # Convert the time difference to total minutes
             total_minutes = int(time_until_open.total_seconds() // 60)
             return total_minutes
     except Exception as e:
