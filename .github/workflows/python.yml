@@ -54,9 +54,9 @@ jobs:
     - name: Install liner (flake8)
       run: pip install flake8
 
-    # # Run linter
-    # - name: Run linter
-    #   run: flake8 .
+    # Run linter
+    - name: Run linter
+      run: flake8 .
 
     # Run test
     - name: Run test suite
