@@ -1,5 +1,5 @@
 # Using Go image for 1.21.6
-FROM python:3.9-slim as builder
+FROM python:3.12-slim as builder
 
 # Set working directory
 WORKDIR /app 
@@ -18,8 +18,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy source code
 COPY . .
 
+# Install the project in editable mode
+RUN pip install -e .
+
 # Final lightweight image
-FROM python:3.9-slim
+FROM python:3.12-slim
 
 # Set working directory
 WORKDIR /app
