@@ -2,8 +2,7 @@ import os
 import time
 import signal
 from alpaca.data.live import StockDataStream
-from helpers import logger
-from helpers import broker
+from helpers import logger, broker
 
 # Configure logger
 logger = logger.Logger('data.py')
