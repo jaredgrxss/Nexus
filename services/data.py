@@ -1,9 +1,11 @@
 import os
 import time
 import signal
+import json
+import asyncio
 from alpaca.data.live import StockDataStream
-from helpers import logger
-from helpers import broker
+from alpaca.data.models import Bar
+from helpers import logger, broker, cloud
 
 # Configure logger
 logger = logger.Logger('data.py')
@@ -63,42 +65,42 @@ def run() -> None:
         UNIVERSE (str): Comma-separated list of stock symbols to subscribe to.
     """
     stream_client, universe = get_broker_stream_client()
-    while True:
+    shutdown = False
+
+    def handle_single(signum, frame):
+        nonlocal shutdown
+        logger.info(f'Received shutdown signal {signum}')
+        shutdown = True
+        stream_client.stop()
+
+    signal.signal(signal.SIGINT, handle_single)
+    signal.signal(signal.SIGTERM, handle_single)
+
+    while not shutdown:
         try:
             # Check if the market is open
             if not broker.is_market_open():
-                logger.info(
-                    f"Market is closed. Reopens in {broker.minutes_till_market_open()} minutes... sleeping for 1 minute."
-                )
-                time.sleep(60)
+                retry_minutes = broker.minutes_till_market_open() or 60
+                logger.info(f'Market closed. Sleeping {retry_minutes} minutes')
+                time.sleep(retry_minutes * 60)
                 continue
 
-            logger.info("Market is open! Starting data service...")
+            logger.info("Adding universe to stream.")
 
-            # Set up signal handling for gradeful shutdown
-            def handle_signal(signum, frame):
-                logger.info("Received signal to terminate. Shutting down...")
-                stream_client.stop()
-                exit(0)
-
-            signal.signal(signal.SIGINT, handle_signal)
-            signal.signal(signal.SIGTERM, handle_signal)
-
-            # Subscribe to the universe of stocks
-            for symbol in universe:
-                stream_client.subscribe(bar_handler, symbol)
+            # Unpack and subscribe universe
+            stream_client.subscribe_bars(bar_handler, *universe)
 
             # Start the websocket connection
-            logger.info("Trying to connect to broker data stream...")
+            logger.info("Starting market data stream.")
             stream_client.run()
-
         except Exception as e:
             logger.error(f"Error in data service: {e}")
-            logger.info("Retrying in 1 minutes...")
-            time.sleep(60)
+            if not shutdown:
+                logger.info("Retrying in 1 minutes...")
+                time.sleep(60)
 
 
-async def bar_handler(bar):
+async def bar_handler(bar: Bar):
     """
     Handles incoming bar data for subscribed symbols.
 
@@ -107,7 +109,27 @@ async def bar_handler(bar):
                    like symbol, timestamp,
                    open, high, low, close, and volume.
     """
-    logger.info(f"Received bar: {bar}")
+    try:
+        # Convert bar object to SNS format
+        message = {
+            'symbol': bar.symbol,
+            'timestamp': bar.timestamp.isoformat(),
+            'open': bar.open,
+            'high': bar.high,
+            'low': bar.low,
+            'close': bar.close,
+            'volume': bar.volume,
+            'trade_count': bar.trade_count
+        }
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(
+            None,
+            cloud.publish_sns_message,
+            json.dumps(message),
+            os.getenv('DATA_SNS')
+        )
+    except Exception as e:
+        logger.error(f'Error in publishing bar data to data topic {e}')
 
 
 def dummy_test() -> int:

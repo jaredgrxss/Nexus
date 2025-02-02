@@ -1,4 +1,4 @@
-import Nexus.services.data as data
+from nexus.services import data
 
 
 def test_run():
