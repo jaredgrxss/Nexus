@@ -1,6 +1,11 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Deploying data service with autoscaling policies and cost-effective ec2 with asg setup.
 
+Parameters:
+  ImageURI:
+    Type: String
+    Description: ECR image URI for the service
+
 Resources:  
   # Define ecs tasks for Data
   TaskDefinitionData:
@@ -13,7 +18,7 @@ Resources:
       ExecutionRoleArn: !ImportValue NexusTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: DataContainer
-          Image: amazon/amazon-ecs-sample
+          Image: !Ref ImageURI
           PortMappings:
             - ContainerPort: 80
           Environment:
@@ -73,20 +78,6 @@ Resources:
         - Key: Name
           Value: DataAutoScalingGroup
           PropagateAtLaunch: true
-
-  # Specify instance types for data service tasks
-  DataLaunchConfiguration:
-    Type: AWS::AutoScaling::LaunchConfiguration
-    Properties:
-      InstanceType: t2.micro
-      ImageId: ami-0c02fb55956c7d316
-      SecurityGroups:
-        - !ImportValue DefaultSecurityGroup
-      IamInstanceProfile: !ImportValue NexusInstanceProfile
-      UserData:
-        Fn::Base64: !Sub |
-          #!/bin/bash
-          echo ECS_CLUSTER=${NexusCluster} >> /etc/ecs/ecs.config
 
   # Need autoscaling target for Data service
   ECSAutoScalingTargetData:

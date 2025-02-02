@@ -37,20 +37,31 @@ def hurst_exponent(data: list[float]) -> float:
     """
     # Convert the data to a numpy array
     data = np.array(data)
-    # Calculate the cumulative deviation from the mean
-    cumulative_deviation = np.cumsum(data - np.mean(data))
-    # Caclulate the range of the cumulative deviation
-    R = np.max(cumulative_deviation) - np.min(cumulative_deviation)
-    # Caclulate the standard deviation of the data
-    S = np.std(data, ddof=1)
-    if S == 0:
-        return 0.5  # Random walk
-    # Rescaled range
-    rescaled_range = R / S
-    # Caclculate the Hurst Exponent using the log of the rescaled range
-    n = len(data)
-    hurst_exponent = np.log(rescaled_range) / np.log(n)
-    return hurst_exponent
+    max_window = len(data) // 4  # Use up to quarter-length windows
+    min_window = 10
+    lags = range(min_window, max_window+1)
+    
+    # Calculate R/S for different lags
+    rs_values = []
+    for lag in lags:
+        n = len(data) // lag * lag
+        subs = data[:n].reshape(-1, lag)
+        # Calculate mean-adjusted series
+        mean_adj = subs - np.mean(subs, axis=1, keepdims=True)
+        # Cumulative deviation
+        cum_dev = np.cumsum(mean_adj, axis=1)
+        # Calculate ranges
+        r = np.max(cum_dev, axis=1) - np.min(cum_dev, axis=1)
+        s = np.std(subs, axis=1, ddof=1)
+        s[s == 0] = 1  # Avoid division by zero
+        rs = np.mean(r / s)
+        rs_values.append(rs)
+    
+    # Fit to log-log scale
+    x = np.log(lags)
+    y = np.log(rs_values)
+    slope = np.polyfit(x, y, 1)[0]
+    return slope
 
 
 def half_life(data: list[float]) -> float:
@@ -72,24 +83,17 @@ def half_life(data: list[float]) -> float:
     """
     # Convert the data to a numpy array
     data = np.array(data)
-    # Create lagged series (y_t) and current series (y_{t - 1})
     y_t = data[1:]
     y_t_minus_1 = data[:-1]
-    # Reshape for sklearn
-    y_t_minus_1 = y_t_minus_1.reshape(-1, 1)
-    y_t = y_t.reshape(-1, 1)
-    # Perform linear regression: y_t = alpha + beta * y_t_minus_1
-    model = LinearRegression()
-    model.fit(y_t_minus_1, y_t)
-    # Get the slope (beta) of the regression
-    beta = model.coef_[0][0]
-    # Calculate the half-life
+    
+    # Use statsmodels for proper OLS without automatic intercept
+    X = sm.add_constant(y_t_minus_1)  # Include intercept explicitly
+    model = sm.OLS(y_t, X).fit()
+    beta = model.params[1]  # Coefficient for y_{t-1}
+    
     if beta >= 1:
-        # If beta >= 1, the series is not mean reverting
         return None
-    else:
-        half_life = -np.log(2) / np.log(beta)
-        return half_life
+    return -np.log(2) / np.log(beta)
 
 
 def cointegration_adf_test(
@@ -132,16 +136,12 @@ def cointegration_adf_test(
     # Step 2: Calculate the residuals
     residual = model.resid
     # Step 3: Perform the ADF test on the residuals
-    adf_result = adfuller(residual, maxlag=lag)
-    # Extract relevant results
-    adf_statistic = adf_result[0]
-    p_value = adf_result[1]
-    critical_values = adf_result[4]
-    is_cointegrated = p_value < 0.05
+    adf_result = adfuller(residual, maxlag=lag, regression='c')
+    critical_value = adf_result[4]['5%']
+    is_cointegrated = adf_result[0] < critical_value  # Proper Engle-Granger decision
     return {
-        'adf_statistic': adf_statistic,
-        'p_value': p_value,
-        'critical_values': critical_values,
+        'adf_statistic': adf_result[0],
+        'critical_value_5%': critical_value,
         'is_cointegrated': is_cointegrated
     }
 
@@ -184,16 +184,18 @@ def johansen_test(
     # Perform the Johansen Test
     result = coint_johansen(data, det_order, k_ar_diff)
     # Extract the relevant results
-    eigenvalues = result.eig
     trace_statistics = result.lr1
     critical_values = result.cvt
-    cointegration_rank = np.sum(result.lr1 > result.cvt[:, 1])
-    # Return the results as a dictionary
+    coint_rank = 0
+    for i in range(len(trace_statistics)):
+        if trace_statistics[i] > critical_values[i, 1]:  # Compare to 95% critical value
+            coint_rank += 1
+        else:
+            break
     return {
-        'eigenvalues': eigenvalues,
         'trace_statistics': trace_statistics,
         'critical_values': critical_values,
-        'cointegration_rank': cointegration_rank
+        'cointegration_rank': coint_rank
     }
 
 
@@ -224,35 +226,24 @@ def bollinger_bands(
               - 'upper_band': The upper band.
               - 'lower_band': The lower band.
     """
-    # Convert the data to a numpy array
     data = np.array(data)
-    # Calculate the simple moving average (SMA)
-    middle_band = np.convolve(data, np.ones(window), mode='valid') / window
-    # Calculate the rolling standard deviation
-    rolling_std = np.sqrt(
-        np.convolve(
-            (data - np.convolve(data, np.ones(window), 'valid') / window)**2,
-            np.ones(window), 'valid') / window
-        )
-    # Calculate the upper and lower bands
-    upper_band = middle_band + (num_std * rolling_std)
-    lower_band = middle_band - (num_std * rolling_std)
-    # Pad the bands with NaNs to align with the original data
-    pad_length = len(data) - len(middle_band)
-    middle_band = np.pad(
-        middle_band, (pad_length, 0), mode='constant', constant_values=np.nan
-    )
-    upper_band = np.pad(
-        upper_band, (pad_length, 0), mode='constant', constant_values=np.nan
-    )
-    lower_band = np.pad(
-        lower_band, (pad_length, 0), mode='constant', constant_values=np.nan
-    )
-    # Return the Bollinger Bands as a dictionary
+    if len(data) < window:
+        raise ValueError("Window size larger than data length")
+    
+    # Use proper rolling calculations
+    middle_band = np.convolve(data, np.ones(window)/window, mode='valid')
+    std_dev = np.array([np.std(data[i-window:i], ddof=1) 
+                       for i in range(window, len(data)+1)])
+    
+    upper_band = middle_band + (num_std * std_dev)
+    lower_band = middle_band - (num_std * std_dev)
+    
+    # Pad with NaNs for alignment
+    pad = window - 1
     return {
-        'middle_band': middle_band,
-        'upper_band': upper_band,
-        'lower_band': lower_band
+        'middle_band': np.pad(middle_band, (pad, 0), constant_values=np.nan),
+        'upper_band': np.pad(upper_band, (pad, 0), constant_values=np.nan),
+        'lower_band': np.pad(lower_band, (pad, 0), constant_values=np.nan)
     }
 
 
@@ -347,13 +338,10 @@ def multiple_regression(X: list[list[float]], Y: list[float]) -> list[float]:
     """
     if len(X) != len(Y):
         raise ValueError("X and Y must have the same length.")
-    # Create and fit the linear regression model
-    model = LinearRegression()
-    model.fit(X, Y)
-    # Extract the coefficients and intercept
-    coefficients = model.coef_.tolist()
-    intercept = model.intercept_
-    return [intercept] + coefficients
+    # Transpose to get (n_samples, n_features)
+    X_array = np.array(X).T
+    model = LinearRegression().fit(X_array, Y)
+    return [model.intercept_] + model.coef_.tolist()
 
 
 def gather_close_data() -> None:

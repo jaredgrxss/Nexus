@@ -1,18 +1,19 @@
-name: Nexus Build and Deployments
+name: nexus
 
 on:
   workflow_dispatch:
     inputs:
-      deployService:
+      deploy-service:
         description: "Specify the service to deploy"
         required: true
-        default: "none"
+        default: "None"
         type: choice
         options:
-          - "data"
-          - "reversion"
-          - "all"
-          - "none"
+          - "Data Service"
+          - "Reversion Service"
+          - "Momentum Service"
+          - "All"
+          - "None"
   push:
     branches: [ "main" ]
   pull_request:
@@ -29,14 +30,12 @@ jobs:
         python-version: [3.12]
     steps:
     - uses: actions/checkout@v4
-
-    # Setup Python 
+    # setup Python 
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
-
-    # Cache modules
+    # cache modules
     - name: Cache modules and dependencies
       uses: actions/cache@v4
       with: 
@@ -45,29 +44,24 @@ jobs:
         key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt')}}
         restore-keys: |
           ${{ runner.os }}-pip-
-    
-    # Install dependencies
+    # install dependencies
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -e .
         pip install -r requirements.txt
-
-    # Install linter 
+    # install linter 
     - name: Install liner (flake8)
       run: pip install flake8
-
-    # Run linter
+    # run linter
     - name: Run linter
       run: flake8 .
-
-    # Run test
+    # run test
     - name: Run test suite
       run: |
         pip install pytest pytest-cov
         pytest --cov-report=xml --cov=./
-
-    # Upload code coverage
+    # upload code coverage
     - name: Upload coverage 
       uses: codecov/codecov-action@v5
       with: 
@@ -75,8 +69,7 @@ jobs:
         flags: unittests
         token: ${{ secrets.CODECOV_TOKEN }}
         fail_ci_if_error: true
-
-    # Scan for hardcoded secrets in code
+    # scan for hardcoded secrets in code
     - name: Secret detection
       uses: gitleaks/gitleaks-action@v1
       env: 
@@ -84,30 +77,29 @@ jobs:
         exit-code: 1
         verbose: true
 
-
   # build and push docker image to ecr
   staging-build-and-push-image:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     needs: [build-and-test]
     steps:
-      # Gather AWS Account credentials
+      # gather AWS Account credentials
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v3
       with: 
         aws-access-key-id: ${{ secrets.QA_AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.QA_AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-2
-      # Checkout code from repo
+      # checkout code from repo
     - name: Checkout repository code
       uses: actions/checkout@v4
-
-      # Login to AWS ECR
+      # login to AWS ECR
     - name: Login to AWS ECR
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
-      # Build, Tag, and Push the new image to aws ecr
+      # build, Tag, and Push the new image to aws ecr
     - name : Build, Tag, and Push Docker Image
+      id: build-push
       env: 
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         ECR_REPOSITORY: nexus
@@ -115,6 +107,9 @@ jobs:
       run: |
         docker build -f dockerFile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+      # output docker image-uri for later use
+    outputs:
+      image-uri: ${{ steps.build-push.outputs.image_uri }}
 
   # deploying resources shared across all services
   staging-common-cloudformation:
@@ -122,175 +117,65 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build-and-test]
     steps:
-      # Gather AWS Account credentials
+      # gather AWS Account credentials
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v3
       with: 
         aws-access-key-id: ${{ secrets.QA_AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.QA_AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-2
-      # Checkout code from repo
+      # checkout code from repo
     - name: Checkout repository code
       uses: actions/checkout@v4
-      # Validate cloudformation template has no errors
+      # validate cloudformation template has no errors
     - name: Validate Cloudformation Template
       run: |
         aws cloudformation validate-template --template-body file://cloudformation/common.yml
-      # Deploy the stack to staging
+      # deploy the stack to staging
     - name: Deploy Cloudformation Stack
       run: |
         aws cloudformation deploy --template-file cloudformation/common.yml --stack-name NexusCommonDeployment --capabilities CAPABILITY_IAM 
-      # Verify deployment was successful
+      # verify deployment was successful
     - name: Verify Cloudformation Deployment
       run: |
         aws cloudformation describe-stacks --stack-name NexusCommonDeployment
   
-  # # deploying cf for data service
-  # staging-data-cloudformation:
-  #   if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.inputs.deployService == 'data'
-  #   runs-on: ubuntu-latest
-  #   needs: [build-and-test, staging-common-cloudformation]
-  #   steps:
-  #     # Gather AWS Account credentials
-  #   - name: Configure AWS credentials
-  #     uses: aws-actions/configure-aws-credentials@v3
-  #     with: 
-  #       aws-access-key-id: ${{ secrets.QA_AWS_ACCESS_KEY_ID }}
-  #       aws-secret-access-key: ${{ secrets.QA_AWS_SECRET_ACCESS_KEY }}
-  #       aws-region: us-east-2
-  #     # Checkout code from repo
-  #   - name: Checkout repository code
-  #     uses: actions/checkout@v4
-  #     # Validate cloudformation template has no errors
-  #   - name: Validate Cloudformation Template
-  #     run: |
-  #       aws cloudformation validate-template --template-body file://cloudformation/staging/data.yml
-  #     # Deploy the stack to staging
-  #   - name: Deploy Cloudformation Stack
-  #     run: |
-  #       aws cloudformation deploy \
-  #         --tempmlate-file cloudformation/staging/data.yml
-  #         --stack-name NexusDataDeployment
-  #         --capabilities CAPABILITY_IAM \
-  #     # Verify deployment was successful
-  #   - name: Verify Cloudformation Deployment
-  #     run: |
-  #       aws cloudformation describe-stacks --stack-name NexusDataDeployment
-            
-  #         # Verify deployment was successful
-  #       - name: Verify Cloudformation Deployment
-  #         run: |
-  #           aws cloudformation describe-stacks --stack-name NexusDataDeployment
-
-  # # deploying cf for reversion service
-  # staging-reversion-cloudformation:
-  #   if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.inputs.deployService == 'reversion'
-  #   runs-on: ubuntu-latest
-  #   needs: [build-and-test, staging-common-cloudformation]
-  #   steps:
-  #     # Gather AWS Account credentials
-  #   - name: Configure AWS credentials
-  #     uses: aws-actions/configure-aws-credentials@v3
-  #     with: 
-  #       aws-access-key-id: ${{ secrets.QA_AWS_ACCESS_KEY_ID }}
-  #       aws-secret-access-key: ${{ secrets.QA_AWS_SECRET_ACCESS_KEY }}
-  #       aws-region: us-east-2
-  #     # Checkout code from repo
-  #   - name: Checkout repository code
-  #     uses: actions/checkout@v4
-  #     # Validate cloudformation template has no errors
-  #   - name: Validate Cloudformation Template
-  #     run: |
-  #       aws cloudformation validate-template --template-body file://cloudformation/staging/reversion.yml
-  #     # Deploy the stack to staging
-  #   - name: Deploy Cloudformation Stack
-  #     run: |
-  #       aws cloudformation deploy \
-  #         --tempmlate-file cloudformation/staging/reversion.yml
-  #         --stack-name NexusReversionDeployment
-  #         --capabilities CAPABILITY_IAM \
-  #     # Verify deployment was successful
-  #   - name: Verify Cloudformation Deployment
-  #     run: |
-  #       aws cloudformation describe-stacks --stack-name NexusReversionDeployment
-            
-  #         # Verify deployment was successful
-  #       - name: Verify Cloudformation Deployment
-  #         run: |
-  #           aws cloudformation describe-stacks --stack-name NexusReversionDeployment
-  
-  # # data service deployment
-  # staging-data-deployment:
-  #   if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.inputs.deployService == 'data'
-  #   runs-on: ubuntu-latest
-  #   needs: [build-and-test, build-and-push-image, staging-common-cloudformation, data-staging-cloudformation]
-  #   steps:
-  #     # Gather AWS Account credentials
-  #   - name: Configure AWS credentials
-  #     uses: aws-actions/configure-aws-credentials@v3
-  #     with: 
-  #       aws-access-key-id: ${{ secrets.QA_AWS_ACCESS_KEY_ID }}
-  #       aws-secret-access-key: ${{ secrets.QA_AWS_SECRET_ACCESS_KEY }}
-  #       aws-region: us-east-2
-  #     # Login to AWS ECR
-  #   - name: Login to AWS ECR
-  #     id: login-ecr
-  #     uses: aws-actions/amazon-ecr-login@v2
-  #     # Deploy to ECS with the latest ecr image
-  #   - name: Deploy Data service to ECS
-  #     env: 
-  #       CLUSTER_NAME: NexusCluster
-  #       SERVICE_NAME: DataService
-  #       TASK_FAMILY: DataTaskDefinition
-  #       CONTAINER_NAME: DataContainer
-  #       ECR_IMAGE: ${{ steps.login-ecr.outputs.registry }}/nexus:${{ github.sha }}
-  #     run: |
-  #         # Get the current task definition 
-  #         CURRENT_TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition $TASK_FAMILY)
-
-  #         # Create a new task definition with updated image
-  #         NEW_TASK_DEFINITION=$(echo $CURRENT_TASK_DEFINITION | jq --arg IMAGE "$ECR_IMAGE" '.taskDefinition | .containerDefinitions[0].image=$IMAGE | del(.status,.revision,.taskDefinitionArn)')
-
-  #         # Register new task definition
-  #         NEW_TASK_DEF_ARN=$(echo $NEW_TASK_DEFINITION | aws ecs register-task-definition --cli-input-json /dev/stdin | jq -r '.taskDefinition.taskDefinitionArn')
-
-  #         # Update Data service to use new task definition
-  #         aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --task-definition $NEW_TASK_DEF_ARN
-
-  # # reversion service deployment
-  # staging-reversion-deployment:
-    # if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.inputs.deployService == 'reversion'
-    # runs-on: ubuntu-latest
-    # needs: [build-and-test, staging-common-cloudformation, reversion-staging-cloudformation]
-    # steps:
-    #   # Gather AWS Account credentials
-    # - name: Configure AWS credentials
-    #   uses: aws-actions/configure-aws-credentials@v3
-    #   with: 
-    #     aws-access-key-id: ${{ secrets.QA_AWS_ACCESS_KEY_ID }}
-    #     aws-secret-access-key: ${{ secrets.QA_AWS_SECRET_ACCESS_KEY }}
-    #     aws-region: us-east-2
-    #   # Login to AWS ECR
-    # - name: Login to AWS ECR
-    #   id: login-ecr
-    #   uses: aws-actions/amazon-ecr-login@v2
-    #   # Deploy to ECS with the latest ecr image
-    # - name: Deploy Data service to ECS
-    #   env: 
-    #     CLUSTER_NAME: NexusCluster
-    #     SERVICE_NAME: ReversionService
-    #     TASK_FAMILY: ReversionTaskDefinition
-    #     CONTAINER_NAME: ReversionContainer
-    #     ECR_IMAGE: ${{ steps.login-ecr.outputs.registry }}/nexus:${{ github.sha }}
-    #   run: |
-    #       # Get the current task definition 
-    #       CURRENT_TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition $TASK_FAMILY)
-
-    #       # Create a new task definition with updated image
-    #       NEW_TASK_DEFINITION=$(echo $CURRENT_TASK_DEFINITION | jq --arg IMAGE "$ECR_IMAGE" '.taskDefinition | .containerDefinitions[0].image=$IMAGE | del(.status,.revision,.taskDefinitionArn)')
-
-    #       # Register new task definition
-    #       NEW_TASK_DEF_ARN=$(echo $NEW_TASK_DEFINITION | aws ecs register-task-definition --cli-input-json /dev/stdin | jq -r '.taskDefinition.taskDefinitionArn')
-
-    #       # Update Data service to use new task definition
-    #       aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --task-definition $NEW_TASK_DEF_ARN
+  # data service deploys
+  staging-deploy-data-service:
+    # only deploy upon main merge & input
+    if: > 
+      github.event_name == 'push' && 
+      github.ref == 'refs/heads/main' && 
+      (github.event.inputs.deploy-service == 'Data Service' || 
+       github.event.inputs.deploy-service == 'All')
+    runs-on: ubuntu-latest
+    needs: [build-and-test, staging-build-and-push-image, staging-common-cloudformation]
+    permissions:
+      deployments: write
+    steps:
+      # gather AWS creds
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v3
+      with:
+        aws-access-key-id: ${{ secrets.QA_AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.QA_AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-2
+      # checkout code
+    - name: Checkout repository code
+      uses: actions/checkout@v4
+      # make sure CF file is valid
+    - name: Validate Service Cloudformation Template
+      run: |
+        aws cloudformation validate-template --template-body file://cloudformation/data-service.yml
+      # deploy stack
+    - name: Deploy Data Service Stack
+      run: |
+        aws cloudformation deploy \
+          --template-file cloudformation/data-service.yml \
+          --stack-name DataServiceStack \
+          --parameter-overrides ImageURI=${{ needs.staging-build-and-push-image.outputs.image-uri }} \
+          --capabilities CAPABILITY_IAM
+      # verify stack deployment 
+    - name: Verify Deployment
+      run: |
+        aws cloudformation describe-stacks --stack-name DataServiceStack

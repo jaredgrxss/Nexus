@@ -1,6 +1,11 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Deploying reversion service with autoscaling policies and cost-effective ec2 with asg setup.
 
+Parameters:
+  ImageURI:
+    Type: String
+    Description: ECR image URI for the service
+
 Resources:  
   # Define ecs tasks for reversion
   TaskDefinitionReversion:
@@ -13,7 +18,7 @@ Resources:
       ExecutionRoleArn: !ImportValue NexusTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: ReversionContainer
-          Image: amazon/amazon-ecs-sample
+          Image: !Ref ImageURI
           PortMappings:
             - ContainerPort: 80
           Environment:
