@@ -12,15 +12,11 @@ Nexus is a robust and modular algorithmic trading platform designed to execute v
    - [Prerequisites](#prerequisites)
    - [Installation](#installation)
    - [Configuration](#configuration)
-4. [Running the Services](#running-the-services)
-   - [Data Service](#data-service)
-   - [Reversion Service](#reversion-service)
-   - [Momentum Service](#momentum-service)
-5. [Environment Variables](#environment-variables)
-6. [Security](#security)
-7. [Testing](#testing)
-8. [Contributing](#contributing)
-9. [License](#license)
+4. [Environment Variables](#environment-variables)
+5. [Security](#security)
+6. [Testing](#testing)
+7. [Contributing](#contributing)
+8. [License](#license)
 
 ---
 
@@ -57,7 +53,79 @@ The platform is structured as follows:
 ### Installation
 
 1. Clone the repository:
-   ```bash
+```bash
 git clone https://github.com/jaredgrxss/nexus.git
 cd nexus
-   ```
+```
+
+2. Install dependencies:
+```bash
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+3. Set up environment files:
+```bash
+cp .env.example .env
+```
+
+### Configuration
+
+1. Environment Setup
+```bash
+nano .env
+python src/helpers/cloud/encrypt_env_file .env
+```
+
+2. AWS Resources
+- Create SQS queues for inter-service communication 
+- Configure SNS topics for event notifications 
+- Store sensitive credentials in Secrets Manager
+
+3. GPG Setup
+```bash
+gpg --full-generate-key  # Create new keypair
+gpg --list-secret-keys   # Note your key ID
+```
+
+
+## Environment Variables
+Variable                         Description                         Required
+`AWS_ACCESS_KEY_ID`              AWS IAM access key                  Yes
+`AWS_SECRET__ACCESS_KEY`         AWS IAM secret key                  Yes
+`DATA_SNS_ARN`                   ARN for market data topic           Yes
+`BROKER_ACCESS_KEY`              Encrypted via secrets manager       Yes
+`BROKER_SECRET_ACCESS_KEY`       Logging verbosity                   No
+
+
+## Security
+- **Encrypted Secrets**: Production credentials stored in AWS Secrets Manager 
+- **Environment Encryption**: 
+```Bash
+# Decrypt for local development
+python src/helpers/env_helpers.py decrypt .env.gpg
+```
+- **IAM Policies**: Least-privilege access for AWS resources
+- **Audit Logging**: All trades logged to S3 bucket with versioning
+
+## Testing
+Run the test suite with coverage:
+```bash
+pytest --cov=src --cov-report=html
+```
+
+- Unit tests: `tests/unit`
+- Integration/tests: `tests/integration`
+- Security tests: `tests/security`
+
+## Contributing
+1. Fork the repository
+2. Create your feature branch:
+```bash
+git checkout -b feature/new-strategy
+```
+3. Add tests for new features
+4. Submit a pull request
+
+## License
+Distributed under the MIT License. See `LICENSE` for more information

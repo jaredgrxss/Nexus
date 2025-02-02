@@ -140,16 +140,24 @@ jobs:
       run: |
         aws cloudformation describe-stacks --stack-name NexusCommonDeployment
   
+  # approval gate 
+  staging-manual-approval:
+    if: always() && needs.staging-common-cloudformation.result == 'success'
+    runs-on: ubuntu-latest
+    needs: [staging-common-cloudformation]
+    environment:
+      name: staging
+    steps:
+      - name: Waiting for staging approval
+        run: echo "Approval received - proceeding with deployments" 
+
   # data service deploys
   staging-deploy-data-service:
     # only deploy upon main merge & input
-    if: > 
-      github.event_name == 'push' && 
-      github.ref == 'refs/heads/main' && 
-      (github.event.inputs.deploy-service == 'Data Service' || 
-       github.event.inputs.deploy-service == 'All')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    needs: [build-and-test, staging-build-and-push-image, staging-common-cloudformation]
+    needs: [staging-manual-approval, staging-build-and-push-image]
+    environment: staging
     permissions:
       deployments: write
     steps:
@@ -183,13 +191,10 @@ jobs:
   # data service deploys
   staging-deploy-reversion-service:
     # only deploy upon main merge & input
-    if: > 
-      github.event_name == 'push' && 
-      github.ref == 'refs/heads/main' && 
-      (github.event.inputs.deploy-service == 'Reversion Service' || 
-       github.event.inputs.deploy-service == 'All')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    needs: [build-and-test, staging-build-and-push-image, staging-common-cloudformation]
+    needs: [staging-manual-approval, staging-build-and-push-image]
+    environment: staging
     permissions:
       deployments: write
     steps:
