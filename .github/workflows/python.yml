@@ -179,3 +179,43 @@ jobs:
     - name: Verify Deployment
       run: |
         aws cloudformation describe-stacks --stack-name DataServiceStack
+  
+  # data service deploys
+  staging-deploy-reversion-service:
+    # only deploy upon main merge & input
+    if: > 
+      github.event_name == 'push' && 
+      github.ref == 'refs/heads/main' && 
+      (github.event.inputs.deploy-service == 'Reversion Service' || 
+       github.event.inputs.deploy-service == 'All')
+    runs-on: ubuntu-latest
+    needs: [build-and-test, staging-build-and-push-image, staging-common-cloudformation]
+    permissions:
+      deployments: write
+    steps:
+      # gather AWS creds
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v3
+      with:
+        aws-access-key-id: ${{ secrets.QA_AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.QA_AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-2
+      # checkout code
+    - name: Checkout repository code
+      uses: actions/checkout@v4
+      # make sure CF file is valid
+    - name: Validate Service Cloudformation Template
+      run: |
+        aws cloudformation validate-template --template-body file://cloudformation/data-service.yml
+      # deploy stack
+    - name: Deploy Data Service Stack
+      run: |
+        aws cloudformation deploy \
+          --template-file cloudformation/data-service.yml \
+          --stack-name DataServiceStack \
+          --parameter-overrides ImageURI=${{ needs.staging-build-and-push-image.outputs.image-uri }} \
+          --capabilities CAPABILITY_IAM
+      # verify stack deployment 
+    - name: Verify Deployment
+      run: |
+        aws cloudformation describe-stacks --stack-name DataServiceStack

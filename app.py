@@ -29,10 +29,10 @@ if __name__ == '__main__':
     # Run the respective service
     match os.getenv('SERVICE'):
         case 'Data':
-            logger.info('Running Data service...')
+            logger.info('Running Data service.')
             data.run()
         case 'Reversion':
-            logger.info('Running Reversion service...')
+            logger.info('Running Reversion service.')
             reversion.run()
         case 'Momentum':
             momentum.run()

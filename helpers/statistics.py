@@ -3,6 +3,7 @@ from statsmodels.tsa.vector_ar.vecm import coint_johansen
 from sklearn.linear_model import LinearRegression
 import numpy as np
 import statsmodels.api as sm
+import nolds
 
 
 def adf_test(data: list[float], lag: int = 1) -> tuple:
@@ -17,51 +18,8 @@ def adf_test(data: list[float], lag: int = 1) -> tuple:
         a tuple containing the test statistic, p-value, number of lags used,
         number of observations used, and the critical values.
     """
-    adf_result = adfuller(data, maxlag=lag)
+    adf_result = adfuller(data, maxlag=lag, regression='c')
     return adf_result
-
-
-def hurst_exponent(data: list[float]) -> float:
-    """
-    Calculate the Hurst Exponent.
-    An H < 0.5 indicates mean reversion,
-    H = 0.5 indicates a random walk,
-    and H > 0.5 indicates a trending series.
-
-    Args:
-        data (list[float]): A list of float values
-                            representing the time series.
-
-    Returns:
-        float: The Hurst Exponent of the time series
-    """
-    # Convert the data to a numpy array
-    data = np.array(data)
-    max_window = len(data) // 4  # Use up to quarter-length windows
-    min_window = 10
-    lags = range(min_window, max_window+1)
-    
-    # Calculate R/S for different lags
-    rs_values = []
-    for lag in lags:
-        n = len(data) // lag * lag
-        subs = data[:n].reshape(-1, lag)
-        # Calculate mean-adjusted series
-        mean_adj = subs - np.mean(subs, axis=1, keepdims=True)
-        # Cumulative deviation
-        cum_dev = np.cumsum(mean_adj, axis=1)
-        # Calculate ranges
-        r = np.max(cum_dev, axis=1) - np.min(cum_dev, axis=1)
-        s = np.std(subs, axis=1, ddof=1)
-        s[s == 0] = 1  # Avoid division by zero
-        rs = np.mean(r / s)
-        rs_values.append(rs)
-    
-    # Fit to log-log scale
-    x = np.log(lags)
-    y = np.log(rs_values)
-    slope = np.polyfit(x, y, 1)[0]
-    return slope
 
 
 def half_life(data: list[float]) -> float:
@@ -85,15 +43,34 @@ def half_life(data: list[float]) -> float:
     data = np.array(data)
     y_t = data[1:]
     y_t_minus_1 = data[:-1]
-    
+
     # Use statsmodels for proper OLS without automatic intercept
     X = sm.add_constant(y_t_minus_1)  # Include intercept explicitly
     model = sm.OLS(y_t, X).fit()
     beta = model.params[1]  # Coefficient for y_{t-1}
-    
+
     if beta >= 1:
         return None
     return -np.log(2) / np.log(beta)
+
+
+def hurst_exponent(data: list[float]) -> float:
+    """
+    Calculate the Hurst Exponent.
+    An H < 0.5 indicates mean reversion,
+    H = 0.5 indicates a random walk,
+    and H > 0.5 indicates a trending series.
+
+    Args:
+        data (list[float]): A list of float values representing the time series.
+
+    Returns:
+        float: The Hurst Exponent of the time series
+    """
+    if len(data) < 10:
+        return .5
+    X = np.array(data)
+    return nolds.hurst_rs(X)
 
 
 def cointegration_adf_test(
@@ -125,24 +102,19 @@ def cointegration_adf_test(
                             the series are cointegrated
                             (True if p-value < 0.05, False otherwise).
     """
-    # Convert the data to numpy arrays
     X = np.array(X)
     Y = np.array(Y)
     if len(X) != len(Y):
         raise ValueError('X and Y must have the same length.')
-    # Step 1: Fit a linear regression model of Y on X
     X = sm.add_constant(X)
     model = sm.OLS(Y, X).fit()
-    # Step 2: Calculate the residuals
     residual = model.resid
-    # Step 3: Perform the ADF test on the residuals
     adf_result = adfuller(residual, maxlag=lag, regression='c')
-    critical_value = adf_result[4]['5%']
-    is_cointegrated = adf_result[0] < critical_value  # Proper Engle-Granger decision
     return {
         'adf_statistic': adf_result[0],
-        'critical_value_5%': critical_value,
-        'is_cointegrated': is_cointegrated
+        'p_value': adf_result[1],
+        'critical_values': adf_result[4],
+        'is_cointegrated': adf_result[0] < adf_result[4]['5%']
     }
 
 
@@ -181,9 +153,9 @@ def johansen_test(
     """
     # Convert the input data to a numpy array and transpose
     data = np.array(data).T
-    # Perform the Johansen Test
+
     result = coint_johansen(data, det_order, k_ar_diff)
-    # Extract the relevant results
+
     trace_statistics = result.lr1
     critical_values = result.cvt
     coint_rank = 0
@@ -229,16 +201,14 @@ def bollinger_bands(
     data = np.array(data)
     if len(data) < window:
         raise ValueError("Window size larger than data length")
-    
-    # Use proper rolling calculations
+
     middle_band = np.convolve(data, np.ones(window)/window, mode='valid')
-    std_dev = np.array([np.std(data[i-window:i], ddof=1) 
+    std_dev = np.array([np.std(data[i-window:i], ddof=1)
                        for i in range(window, len(data)+1)])
-    
+
     upper_band = middle_band + (num_std * std_dev)
     lower_band = middle_band - (num_std * std_dev)
-    
-    # Pad with NaNs for alignment
+
     pad = window - 1
     return {
         'middle_band': np.pad(middle_band, (pad, 0), constant_values=np.nan),
@@ -308,12 +278,9 @@ def linear_regression(X: list[float], Y: list[float]) -> tuple[float, float]:
     """
     if len(X) != len(Y):
         raise ValueError("X and Y must have the same length.")
-    # Reshape X to a 2D array (required by scikit-learn)
     X_reshaped = [[x] for x in X]
-    # Create and fit the linear regression model
     model = LinearRegression()
     model.fit(X_reshaped, Y)
-    # Extract the slope (coefficient) and intercept
     a = model.coef_[0]
     b = model.intercept_
     return a, b
@@ -338,8 +305,9 @@ def multiple_regression(X: list[list[float]], Y: list[float]) -> list[float]:
     """
     if len(X) != len(Y):
         raise ValueError("X and Y must have the same length.")
-    # Transpose to get (n_samples, n_features)
-    X_array = np.array(X).T
+    X_array = np.array(X)
+    if X_array.ndim == 1:
+        X_array = X_array.reshape(-1, 1)
     model = LinearRegression().fit(X_array, Y)
     return [model.intercept_] + model.coef_.tolist()
 
