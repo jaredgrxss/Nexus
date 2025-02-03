@@ -124,7 +124,7 @@ def place_market_order(
     qty: float,
     side: OrderSide,
     time_in_force: TimeInForce = TimeInForce.DAY
-) -> None:
+) -> Optional[float]:
     """
     Place a market order.
 
@@ -150,10 +150,16 @@ def place_market_order(
             time_in_force=time_in_force
         )
         # Place the market order
-        trading_client.submit_order(market_order)
+        submitted_order = trading_client.submit_order(market_order)
         logger.info(
             f"Market order placed for {qty} shares of {symbol} ({side.value})"
         )
+        # Check if the filled average price is available
+        if submitted_order.filled_avg_price is not None:
+            return float(submitted_order.filled_avg_price)
+        else:
+            logger.warning('Order was placed but filled price is not yet available')
+            return None
     except Exception as e:
         raise Exception(f"Failed to place market order: {e}") from e
 
