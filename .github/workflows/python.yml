@@ -144,7 +144,7 @@ jobs:
   staging-manual-approval:
     if: always() && needs.staging-common-cloudformation.result == 'success'
     runs-on: ubuntu-latest
-    needs: [staging-common-cloudformation]
+    needs: [build-and-test, staging-common-cloudformation, staging-build-and-push-image]
     environment:
       name: staging
     steps:
@@ -156,7 +156,7 @@ jobs:
     # only deploy upon main merge & input
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    needs: [staging-manual-approval, staging-build-and-push-image]
+    needs: [staging-manual-approval]
     environment: staging
     permissions:
       deployments: write
