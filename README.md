@@ -1,3 +1,5 @@
+![Nexus](docs/images/logo-color.png)
+
 # Nexus: Algorithmic Trading Platform
 
 Nexus is a robust and modular algorithmic trading platform designed to execute various trading strategies, such as **mean reversion** and **momentum**, in a scalable and secure manner. The platform integrates with AWS services (SQS, SNS, Secrets Manager) for message queuing, event-driven architecture, and secure secret management. It is designed to run both locally and in cloud environments.

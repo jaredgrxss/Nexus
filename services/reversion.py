@@ -1,5 +1,10 @@
 import os
-from helpers import cloud, logger
+from helpers import cloud
+from helpers import broker
+from helpers import logger
+from helpers import strategy
+from helpers import statistics
+from alpaca.trading.enums import OrderSide
 
 logger = logger.Logger('reversion.py')
 
@@ -49,6 +54,14 @@ def run() -> None:
         logger.error(f'Error subscribing to SNS data topic: {e}')
         return
 
+    # Construct import strategy containers
+    trading_state_manager = strategy.TradingStateManager(logger=logger)
+    risk_manager = strategy.RiskManager(trading_state_manager)
+    order_executor = strategy.OrderExecutor(
+        state_manager=trading_state_manager,
+        risk_manager=risk_manager
+        )
+
     # Poll SQS for messages forever
     while True:
         try:
@@ -56,17 +69,14 @@ def run() -> None:
             messages = cloud.poll_sqs_message(
                 queue_url=os.getenv('REVERSION_SQS_URL')
             )
-
             if not messages:
                 logger.info('No reversion queue messages received.')
                 continue
-
             # Process each message
             for message in messages:
                 logger.info(
                     f"Received SNS message: ID={message['MessageId']}, Body={message['Body']}"
                 )
-
                 # Delete the message from the queue after processing
                 try:
                     cloud.delete_sqs_message(
@@ -75,5 +85,39 @@ def run() -> None:
                     )
                 except Exception as e:
                     logger.error(f'Error deleting SQS message: {e}')
+
+                try:
+                    # Don't generate signals if market is not open
+                    if not broker.is_market_open() or broker.minutes_till_market_close() <= 15:
+                        retry_minutes = broker.minutes_till_market_open() or 60
+                        logger.info(
+                            f'Market not open or <= 15 minutes left in trading day, skipping signal generation for {retry_minutes} minutes'
+                        )
+                        continue
+
+                    # signal generation
+                    do, side, qty, symbol = calculate_signal(message)
+
+                    # make sure signal said to move and that market is not about to close
+                    if do and broker.minutes_till_market_close() > 15:
+                        order_executor.execute_market_order(
+                            symbol=symbol,
+                            qty=qty if side == OrderSide.BUY else -qty
+                        )
+
+                    # Make sure to liquidate all positions 15 minutes prior to market close
+                    if broker.minutes_till_market_close() <= 15:
+                        order_executor.liquidate_all_positions()
+                except Exception as e:
+                    logger.error(f'Error in reversion strategy: {e}')
         except Exception as e:
             logger.error(f'Error receiving SQS message: {e}')
+
+
+def calculate_signal(message):
+    statistics.bollinger_bands(message.close)
+    side = OrderSide.BUY
+    qty = 0
+    symbol = 0
+    do = False
+    return do, side, qty, symbol
