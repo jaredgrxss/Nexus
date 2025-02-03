@@ -23,7 +23,6 @@ def get_broker_stream_client():
     api_key = os.getenv('BROKER_API_KEY')
     api_secret = os.getenv('BROKER_SECRET_KEY')
     universe = os.getenv('UNIVERSE').split(',')
-    print(universe)
     if not api_key or not api_secret:
         raise ValueError("Broker API credentials are missing in environment variables.")
 
