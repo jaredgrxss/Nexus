@@ -4,6 +4,7 @@ from alpaca.trading.client import TradingClient
 from alpaca.trading.requests import MarketOrderRequest, LimitOrderRequest
 from alpaca.trading.enums import OrderSide, TimeInForce
 from alpaca.data import StockHistoricalDataClient
+from alpaca.data.models import Bar
 from alpaca.data.requests import (
                                   StockBarsRequest,
                                   StockQuotesRequest,
@@ -239,8 +240,8 @@ def get_historical_bar_data(
         end=end_date,
         limit=limit
     )
-    bars = stock_client.get_bars(request)
-    return bars.df  # Returns a pandas dataframe
+    bars = stock_client.get_stock_bars(request)
+    return bars.data  # Returns a pandas dataframe
 
 
 def get_historical_quote_data(
@@ -271,7 +272,7 @@ def get_historical_quote_data(
         limit=limit
     )
     quotes = stock_client.get_quotes(request)
-    return quotes.df  # Returns a pandas dataframe
+    return quotes.data  # Returns a pandas dataframe
 
 
 def get_historical_trade_data(
@@ -302,4 +303,68 @@ def get_historical_trade_data(
         limit=limit
     )
     trades = stock_client.get_trades(request)
-    return trades.df  # Returns a pandas dataframe
+    return trades.data  # Returns a pandas dataframe
+
+
+def extract_close_data(bars: List[Bar]) -> List[float]:
+    """
+    Extract the 'close' prices for all bar data points from a list of Bar objects.
+
+    Args:
+        bars (List[Bar]): A list of Bar objects containing historical bar data,
+                          typically returned by the Alpaca API.
+
+    Returns:
+        List[float]: A list of 'close' prices for all bar data points.
+    """
+    if not bars:
+        raise ValueError("The list of Bar objects is empty.")
+    return [bar.close for bar in bars]
+
+
+def extract_open_data(bars: List[Bar]) -> List[float]:
+    """
+    Extract the 'open' prices for all bar data points from a list of Bar objects.
+
+    Args:
+        bars (List[Bar]): A list of Bar objects containing historical bar data,
+                          typically returned by the Alpaca API.
+
+    Returns:
+        List[float]: A list of 'open' prices for all bar data points.
+    """
+    if not bars:
+        raise ValueError("The list of Bar objects is empty.")
+    return [bar.open for bar in bars]
+
+
+def extract_high_data(bars: List[Bar]) -> List[float]:
+    """
+    Extract the 'high' prices for all bar data points from a list of Bar objects.
+
+    Args:
+        bars (List[Bar]): A list of Bar objects containing historical bar data,
+                          typically returned by the Alpaca API.
+
+    Returns:
+        List[float]: A list of 'high' prices for all bar data points.
+    """
+    if not bars:
+        raise ValueError("The list of Bar objects is empty.")
+    return [bar.high for bar in bars]
+
+
+def extract_low_data(bars: List[Bar]) -> List[float]:
+    """
+    Extract the 'low' prices for all bar data points from a list of Bar objects.
+
+    Args:
+        bars (List[Bar]): A list of Bar objects containing historical bar data,
+                          typically returned by the Alpaca API.
+
+    Returns:
+        List[float]: A list of 'low' prices for all bar data points.
+    """
+    if not bars:
+        raise ValueError("The list of Bar objects is empty.")
+    return [bar.low for bar in bars]

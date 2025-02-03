@@ -1,10 +1,14 @@
 import os
+import time
+import json
+from datetime import datetime, timedelta
 from helpers import cloud
 from helpers import broker
 from helpers import logger
 from helpers import strategy
 from helpers import statistics
 from alpaca.trading.enums import OrderSide
+from alpaca.data.timeframe import TimeFrame
 
 logger = logger.Logger('reversion.py')
 
@@ -12,7 +16,8 @@ logger = logger.Logger('reversion.py')
 def run() -> None:
     """
     A service for implementing a mean-reversion trading strategy by polling an SQS queue
-    for trading signals and processing them.
+    for trading signals and processing them. The first iteration of this strategy will
+    be a long-only strategy.
 
     This function performs the following steps:
     1. Subscribes the reversion SQS queue to the data SNS topic to receive trading signals.
@@ -62,6 +67,9 @@ def run() -> None:
         risk_manager=risk_manager
         )
 
+    # Get strategy universe
+    reversion_universe = os.getenv('REVERSION_UNIVERSE').split(',')
+
     # Poll SQS for messages forever
     while True:
         try:
@@ -70,12 +78,16 @@ def run() -> None:
                 queue_url=os.getenv('REVERSION_SQS_URL')
             )
             if not messages:
-                logger.info('No reversion queue messages received.')
+                logger.info('No reversion queue messages available. Sleeping for 10 seconds...')
+                time.sleep(10)
                 continue
             # Process each message
             for message in messages:
+                # Transform message for later use
+                outer_message = json.loads(message['Body'])
+                bar_data = json.loads(outer_message['Message'])
                 logger.info(
-                    f"Received SNS message: ID={message['MessageId']}, Body={message['Body']}"
+                    f"Received SNS message: ID={message['MessageId']}, SYMBOL={bar_data['symbol']}"
                 )
                 # Delete the message from the queue after processing
                 try:
@@ -96,7 +108,7 @@ def run() -> None:
                         continue
 
                     # signal generation
-                    do, side, qty, symbol = calculate_signal(message)
+                    do, side, qty, symbol = generate_signal(bar_data, reversion_universe)
 
                     # make sure signal said to move and that market is not about to close
                     if do and broker.minutes_till_market_close() > 15:
@@ -114,10 +126,76 @@ def run() -> None:
             logger.error(f'Error receiving SQS message: {e}')
 
 
-def calculate_signal(message):
-    statistics.bollinger_bands(message.close)
+def generate_signal(message: dict, reversion_universe: list[str]):
+    """
+    Calculates a trading signal based on the provided market data message.
+
+    This function analyzes the high, open, close, low, symbol, and timestamp from the input message
+    to determine whether a trade should be executed. It currently prints the relevant market data
+    and returns default values for the trade signal.
+
+    Parameters:
+    -----------
+    message : dict
+        A dictionary containing market data for a specific symbol. Expected keys are:
+        - 'high' (float): The highest price of the symbol during the time period.
+        - 'open' (float): The opening price of the symbol during the time period.
+        - 'close' (float): The closing price of the symbol during the time period.
+        - 'low' (float): The lowest price of the symbol during the time period.
+        - 'symbol' (str): The trading symbol (e.g., 'TSLA').
+        - 'timestamp' (str): The timestamp of the market data in ISO format.
+    reversion_universe : str
+        A universe related to this service
+    Returns:
+    --------
+    tuple
+        A tuple containing the following elements:
+        - do (bool): A flag indicating whether to execute the trade. Default is False.
+        - side (OrderSide): The side of the trade (BUY or SELL). Default is OrderSide.BUY.
+        - qty (int): The quantity of the trade. Default is 1.
+        - symbol (int): The trading symbol. Default is None
+
+    Example:
+    --------
+     message = {
+        'high': 383.89,
+        'open': 383.495,
+        'low': 383.49,
+        'symbol': 'TSLA',
+        'timestamp': '2025-02-03T19:36:00+00:00'
+        'tradecount': 25
+    }
+    generate_signal(message)
+    (False, OrderSide.BUY, 5, 'AAPL)
+    """
     side = OrderSide.BUY
     qty = 0
-    symbol = 0
+    symbol = None
     do = False
+    # ensure the symbol is in the strategy universe, will add SQS filter policy at a later date
+    if message['symbol'] in reversion_universe:
+        end_time = datetime.now().replace(minute=0, second=0, microsecond=0)
+        start_time = end_time - timedelta(hours=2)  # Ensure enough bars
+        print(start_time, end_time)
+        data = broker.get_historical_bar_data(
+            symbols=message['symbol'],
+            start_date=start_time,
+            end_date=end_time,
+            timeframe=TimeFrame.Minute,
+            limit=None
+        )[message['symbol']]  # extract the symbol of concern
+
+        close_prices = broker.extract_close_data(data)
+        bands = statistics.bollinger_bands(close_prices, 20)
+
+        if message['close'] >= bands['upper_band'][-1]:
+            do = True
+            symbol = message['symbol']
+            qty = -1
+            side = OrderSide.SELL
+        elif message['close'] <= bands['lower_band'][-1]:
+            do = True
+            symbol = message['symbol']
+            qty = 1
+            side = OrderSide.BUY
     return do, side, qty, symbol

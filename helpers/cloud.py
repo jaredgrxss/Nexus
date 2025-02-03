@@ -233,12 +233,13 @@ def decrypt_env_file(
         raise Exception(f"Failed to decrypt environment file: {e}") from e
 
 
-def encrypt_env_file(password: str, output_env_file: str) -> None:
+def encrypt_env_file(password: str, input_env_file: str, output_env_file: str) -> None:
     """
     Encrypt the current environment variables into a file using GPG.
 
     Args:
         password (str): The passphrase used to encrypt the file.
+        input_env_file (str): The path to the .env file to be encrypted.
         output_env_file (str): The path to save the encrypted environment file.
 
     Raises:
@@ -248,9 +249,10 @@ def encrypt_env_file(password: str, output_env_file: str) -> None:
         # Initialize GPG
         gpg = gnupg.GPG()
         # Convert environment variables to a string
-        env_data = '\n'.join(
-            [f"{key}={value}" for key, value in os.environ.items()]
-        )
+        # Read the content of the .env file
+        with open(input_env_file, 'r') as file:
+            env_data = file.read()
+
         # Encrypt the data
         encrypted_data = gpg.encrypt(
             env_data,
