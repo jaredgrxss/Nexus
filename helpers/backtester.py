@@ -10,7 +10,7 @@ from typing import List, Dict
 from alpaca.trading.enums import OrderSide
 from datetime import datetime
 from helpers import logger
-from helpers.strategies import bollinger_bands
+from helpers.strategies.bollinger_bands import BollingerBands
 
 
 class SlippageModel:
@@ -146,7 +146,7 @@ class MockRiskManager:
         self.daily_loss_limit = -5000
         self.state = state_manager
 
-    def validate_order(self, symbol: str, qty: int, price: float) -> bool:
+    def validate_order(self, symbol: str, qty: int, price: float, bar_time: int) -> bool:
         """Validates order against all risk checks.
 
         Args:
@@ -157,7 +157,7 @@ class MockRiskManager:
         Returns:
             bool: True if order passes all risk checks, False otherwise
         """
-        if not self._is_market_open(datetime.now(pytz.utc)):
+        if not self._is_market_open(bar_time):
             self.state.logger.warning('Market closed - rejecting order')
             return False
 
@@ -248,7 +248,7 @@ class MockOrderExecutor:
         self.risk = risk_manager
         self.slippage = slippage
 
-    def execute_market_order(self, symbol: str, qty: int, current_price: float) -> bool:
+    def execute_market_order(self, symbol: str, qty: int, current_price: float, unix_bar_time: int) -> bool:
         """Executes market order with full risk validation lifecycle.
 
         Args:
@@ -260,7 +260,7 @@ class MockOrderExecutor:
             bool: True if order executed successfully, False otherwise
         """
         try:
-            if not current_price or not self.risk.validate_order(symbol, qty, current_price):
+            if not current_price or not self.risk.validate_order(symbol, qty, current_price, unix_bar_time):
                 return False
 
             filled_price = self.slippage.get_fill_price(
@@ -284,6 +284,9 @@ class MockOrderExecutor:
             self.state.liquidate_all_positions()
         except Exception as e:
             self.state.logger.error(f'Failed to liquidate all strategy positions: {e}')
+            
+    def plot_important_metrics(self) -> None:
+        pass
 
 
 class BackTester():
@@ -292,12 +295,12 @@ class BackTester():
         universe: list[str],
         initial_capital: float,
         order_exectuor: MockOrderExecutor,
-        strategy: bollinger_bands.BollingerBands,
+        strategy: BollingerBands,
     ) -> None:
         self.capital = initial_capital
         self.universe = universe
-        self.order_exectuor = order_exectuor
-        self.strategy = strategy,
+        self.order_executor = order_exectuor
+        self.strategy = strategy
 
     def __fetch_historical_data(
         self,
@@ -312,20 +315,34 @@ class BackTester():
             logger.info(f"Successfully retrieved historical data for {equity}!")
             return res.text
         except Exception as e:
-            logger.error(f"Error retrieving historical data {e}")
+            raise Exception(f"Failed to reieve historical data {e}")
 
     def run(self) -> None:
-        for symbol in self.universe:
-            res = self.__fetch_historical_data(symbol, '2023-02-01', '2025-02-01')
-        print(res)
-        pass
+        try:
+            historical_data = self.__fetch_historical_data(self.universe[0], '2023-02-01', '2025-02-01')
+            for bar_data in historical_data:
+                unix_time = bar_data['t']
+                bar_data['symbol'] = self.universe[0]
+                do, side, qty, symbol = self.strategy.generate_signal(bar_data)
+                if do and not self.strategy.less_than_fifteen(unix_time):
+                    self.order_exectuor.execute_market_order(
+                        symbol=symbol,
+                        qty=qty if side == OrderSide.BUY else -qty,
+                        current_price=bar_data['close']
+                    )
+                elif self.strategy.less_than_fifteen(unix_time):
+                    self.order_executor.liquidate_all_positions()
+            self.order_executor.plot_important_metrics()
+        except Exception as e:
+            logger.error(f"Error while performing backtest {e}")
+            return
 
 
 if __name__ == '__main__':
     # Load in all envs
     load_dotenv()
     # Set up strategy to be tested
-    backtest_strategy = bollinger_bands.BollingerBands(
+    backtest_strategy = BollingerBands(
         strategy_universe=['META']
     )
     # Generate a slippage model

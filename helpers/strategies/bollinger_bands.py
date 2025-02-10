@@ -1,3 +1,4 @@
+import pytz, time
 from datetime import datetime, timedelta
 from helpers import statistics
 from alpaca.trading.enums import OrderSide
@@ -82,6 +83,27 @@ class BollingerBands:
                 qty = 1
                 side = OrderSide.BUY
         return do, side, qty, symbol
+    
+    def less_than_fifteen(self, unix_bar_time: int) -> bool:
+        """
+        Check if there are 15 minutes or less left in the NYSE trading day.
+        """
+        ny_tz = pytz.timezone('America/New_York')
+        dt_ny = dt_utc.astimezone(ny_tz)
+
+        # Check if market is open
+        if not _is_market_open(dt_utc):
+            return False
+
+        # Define market close time
+        close_time_ny = datetime.combine(dt_ny.date(), time(16, 0)).astimezone(ny_tz)
+
+        # Calculate time remaining
+        time_remaining = close_time_ny - dt_ny
+
+        # Check if 15 minutes or less remain
+        return time_remaining <= timedelta(minutes=15)
+        
 
     def get_historical_bar_data(self):
         pass
