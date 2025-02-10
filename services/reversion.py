@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from helpers import cloud
 from helpers import broker
 from helpers import logger
-from helpers import strategy
+from helpers import trading
 from helpers import statistics
 from alpaca.trading.enums import OrderSide
 from alpaca.data.timeframe import TimeFrame
@@ -60,15 +60,15 @@ def run() -> None:
         return
 
     # Construct import strategy containers
-    trading_state_manager = strategy.TradingStateManager(logger=logger)
-    risk_manager = strategy.RiskManager(trading_state_manager)
-    order_executor = strategy.OrderExecutor(
+    trading_state_manager = trading.TradingStateManager(logger=logger)
+    risk_manager = trading.RiskManager(trading_state_manager)
+    order_executor = trading.OrderExecutor(
         state_manager=trading_state_manager,
         risk_manager=risk_manager
         )
 
     # Get strategy universe
-    reversion_universe = os.getenv('REVERSION_UNIVERSE').split(',')
+    reversion_universe = ['META']
 
     # Poll SQS for messages forever
     while True:
@@ -176,7 +176,6 @@ def generate_signal(message: dict, reversion_universe: list[str]):
     if message['symbol'] in reversion_universe:
         end_time = datetime.now().replace(minute=0, second=0, microsecond=0)
         start_time = end_time - timedelta(hours=2)  # Ensure enough bars
-        print(start_time, end_time)
         data = broker.get_historical_bar_data(
             symbols=message['symbol'],
             start_date=start_time,
