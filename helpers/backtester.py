@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from threading import Lock
 from typing import List, Dict
 from alpaca.trading.enums import OrderSide
-from datetime import datetime
+from datetime import datetime, timedelta
 from helpers import logger
 from helpers.strategies.bollinger_bands import BollingerBands
 
@@ -157,7 +157,7 @@ class MockRiskManager:
         Returns:
             bool: True if order passes all risk checks, False otherwise
         """
-        if not self._is_market_open(bar_time):
+        if not self.is_market_open(bar_time):
             self.state.logger.warning('Market closed - rejecting order')
             return False
 
@@ -203,7 +203,7 @@ class MockRiskManager:
             return True
         return False
 
-    def _is_market_open(dt_utc: datetime) -> bool:
+    def is_market_open(dt_utc: datetime) -> bool:
         """
         Check if UTC timestamp falls within NYSE market hours (9:30-16:00 ET)
         Simple version without holiday checks - assumes valid trading days
@@ -278,13 +278,33 @@ class MockOrderExecutor:
             self.state.logger.error(f'Execution market order failed {e}')
             return False
 
+    def less_than_fifteen(self, unix_bar_time: int) -> bool:
+        """
+        Check if there are 15 minutes or less left in the NYSE trading day.
+        """
+        ny_tz = pytz.timezone('America/New_York')
+        dt_ny = unix_bar_time.astimezone(ny_tz)
+
+        # Check if market is open
+        if not self.risk.is_market_open(unix_bar_time):
+            return False
+
+        # Define market close time
+        close_time_ny = datetime.combine(dt_ny.date(), time(16, 0)).astimezone(ny_tz)
+
+        # Calculate time remaining
+        time_remaining = close_time_ny - dt_ny
+
+        # Check if 15 minutes or less remain
+        return time_remaining <= timedelta(minutes=15)
+
     def liquidate_all_positions(self) -> None:
         """Initiates complete position liquidation for the strategy."""
         try:
             self.state.liquidate_all_positions()
         except Exception as e:
             self.state.logger.error(f'Failed to liquidate all strategy positions: {e}')
-            
+
     def plot_important_metrics(self) -> None:
         pass
 
@@ -330,7 +350,7 @@ class BackTester():
                         qty=qty if side == OrderSide.BUY else -qty,
                         current_price=bar_data['close']
                     )
-                elif self.strategy.less_than_fifteen(unix_time):
+                elif self.order_executor.less_than_fifteen(unix_time):
                     self.order_executor.liquidate_all_positions()
             self.order_executor.plot_important_metrics()
         except Exception as e:

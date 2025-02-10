@@ -60,13 +60,16 @@ def run() -> None:
         return
 
     # Construct import strategy containers
-    trading_state_manager = trading.TradingStateManager(logger=logger)
-    risk_manager = trading.RiskManager(trading_state_manager)
+    trading_state_manager = trading.TradingStateManager(
+        logger=logger
+    )
+    risk_manager = trading.RiskManager(
+        state_manager=trading_state_manager
+    )
     order_executor = trading.OrderExecutor(
         state_manager=trading_state_manager,
         risk_manager=risk_manager
-        )
-
+    )
     # Get strategy universe
     reversion_universe = ['META']
 
@@ -116,9 +119,8 @@ def run() -> None:
                             symbol=symbol,
                             qty=qty if side == OrderSide.BUY else -qty
                         )
-
                     # Make sure to liquidate all positions 15 minutes prior to market close
-                    if broker.minutes_till_market_close() <= 15:
+                    elif broker.minutes_till_market_close() <= 15:
                         order_executor.liquidate_all_positions()
                 except Exception as e:
                     logger.error(f'Error in reversion strategy: {e}')
